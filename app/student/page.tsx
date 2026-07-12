@@ -96,7 +96,7 @@ export default function AdvancedStudentDashboard() {
     formData.append('upload_preset', UPLOAD_PRESET);
 
     try {
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/outo/upload`, {
         method: 'POST',
         body: formData,
       });

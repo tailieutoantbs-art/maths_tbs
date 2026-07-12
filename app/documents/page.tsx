@@ -68,7 +68,7 @@ function DocumentsManagementPage() {
     
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', 'TAILIEUTBS');
+    formData.append('upload_preset', 'cosodulieuhungtbs');
 
     try {
       const cloudName = 'dlqjlzekw';

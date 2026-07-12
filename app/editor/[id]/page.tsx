@@ -96,7 +96,7 @@ function LectureEditPage() {
 
         try {
           const cloudName = 'dlqjlzekw'; 
-          const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+          const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/outo/upload`, {
             method: 'POST',
             body: formData,
           });
