@@ -1,262 +1,143 @@
-'use client';
+import React from 'react';
+import Link from 'next/link';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, limit, addDoc, serverTimestamp } from 'firebase/firestore';
-import 'katex/dist/katex.min.css';
-import { InlineMath } from 'react-katex';
-
-export default function AdvancedStudentDashboard() {
-  const router = useRouter();
-  
-  // Thông số cấu hình Cloudinary thầy cung cấp
-  const CLOUD_NAME = 'dlqjlzekw';
-  const UPLOAD_PRESET = 'cosodulieuhungtbs';
-
-  // Trạng thái hồ sơ học sinh
-  const [studentProfile] = useState({
-    name: 'Nguyễn Văn An',
-    class: '12A1',
-    exp: 340,
-    rank: 'Thợ săn Tích phân',
-    avatar: '👨‍🎓'
-  });
-
-  // Trạng thái danh sách nhiệm vụ học tập
-  const [missions, setMissions] = useState([
-    { id: 'm1', title: 'Thử thách tự luận: Phương trình mặt phẳng ', math: 'Oxyz', points: '+40 EXP', status: 'pending', type: 'required' },
-    { id: 'm2', title: 'Ôn tập chương: Tính nguyên hàm bằng phương pháp từng phần ', math: '\\int u dv', points: '+50 EXP', status: 'completed', type: 'required' },
-    { id: 'm3', title: 'Mũi nhọn Olympic: Bất đẳng thức tích phân nâng cao ', math: '\\text{Olympic}', points: '+100 EXP', status: 'pending', type: 'olympic' },
-  ]);
-
-  // Trạng thái xử lý tải ảnh tự luận lên Cloudinary
-  const [selectedMission, setSelectedMission] = useState<any>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadedUrl, setUploadedUrl] = useState('');
-  const [previewUrl, setPreviewUrl] = useState('');
-
-  // Trạng thái Bảng Xếp Hạng
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
-
-  useEffect(() => {
-    const fetchLeaderboard = async () => {
-      try {
-        const q = query(collection(db, 'hocsinh_profile'), orderBy('exp', 'desc'), limit(5));
-        const querySnapshot = await getDocs(q);
-        const list: any[] = [];
-        querySnapshot.forEach((doc) => {
-          list.push({ id: doc.id, ...doc.data() });
-        });
-        
-        if (list.length === 0) {
-          setLeaderboard([
-            { name: 'Trần Minh Đức', class: '12A1', exp: 520, rank: 'Bậc thầy Oxyz' },
-            { name: 'Nguyễn Văn An', class: '12A1', exp: 340, rank: 'Thợ săn Tích phân' },
-            { name: 'Lê Thị Hồng', class: '12A2', exp: 290, rank: 'Thợ săn Tích phân' },
-          ]);
-        } else {
-          setLeaderboard(list);
-        }
-      } catch (error) {
-        console.error("Lỗi tải bảng xếp hạng:", error);
-      } finally {
-        setLoadingLeaderboard(false);
-      }
-    };
-    fetchLeaderboard();
-  }, []);
-
-  // Xử lý tạo ảnh xem trước khi học sinh chọn file ảnh chụp bài làm
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPreviewUrl(URL.createObjectURL(file));
-      setUploadedUrl('');
-    }
-  };
-
-  // LUỒNG ĐẨY ẢNH TRỰC TIẾP LÊN CLOUDINARY QUA API KHÔNG CẦN CHỮ KÝ (UNSIGNED UPLOAD)
-  const handleUploadAssignment = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fileInput = e.currentTarget.elements.namedItem('file_assignment') as HTMLInputElement;
-    const file = fileInput?.files?.[0];
-
-    if (!file) {
-      alert("Vui lòng chọn bức ảnh chụp bài nháp/bài làm tự luận trước khi bấm nộp bài!");
-      return;
-    }
-
-    setUploading(true);
-    
-    // Đóng gói dữ liệu Form đẩy lên Cloudinary
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', UPLOAD_PRESET);
-
-    try {
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/outo/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await response.json();
-      
-      if (data.secure_url) {
-        const secureLink = data.secure_url;
-        setUploadedUrl(secureLink);
-
-        // Lưu bản ghi nộp bài hoàn chỉnh của học sinh vào Firestore
-        await addDoc(collection(db, 'bainop_hocsinh'), {
-          studentName: studentProfile.name,
-          studentClass: studentProfile.class,
-          missionId: selectedMission.id,
-          missionTitle: selectedMission.title,
-          imageUrl: secureLink, // Đường dẫn ảnh Cloudinary lưu trữ vĩnh viễn
-          createdAt: serverTimestamp()
-        });
-
-        // Cập nhật trạng thái hiển thị nhiệm vụ trên giao diện học sinh
-        setMissions(prev => prev.map(m => m.id === selectedMission.id ? { ...m, status: 'completed' } : m));
-        alert("Nộp bài tự luận thành công! Bài làm đã được đồng bộ lên hệ thống dữ liệu Toán_TBS.");
-        setSelectedMission(null);
-        setPreviewUrl('');
-      } else {
-        throw new Error("Không nhận được liên kết an toàn từ Cloudinary.");
-      }
-    } catch (error) {
-      console.error("Lỗi nộp bài lên Cloudinary:", error);
-      alert("Quá trình kết nối Cloudinary gặp sự cố. Thầy vui lòng kiểm tra lại cấu hình Cổng Upload Preset!");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const nextRankExp = 500;
-  const progressPercentage = Math.min((studentProfile.exp / nextRankExp) * 100, 100);
-
+export default function StudentDashboard() {
   return (
-    <main className="min-h-screen bg-[#E0F2FE] p-4 md:p-8 flex flex-col items-center">
-      <div className="max-w-6xl w-full">
+    <div className="min-h-screen bg-[#eaf4fb] p-4 md:p-8 font-sans">
+      <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* HỒ SƠ HỌC VIÊN */}
-        <div className="bg-white/60 backdrop-blur-xl border border-white/80 p-6 rounded-3xl shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 mb-8 relative overflow-hidden">
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-sky-200/40 rounded-full blur-3xl -z-10"></div>
-          <div className="flex items-center gap-4 text-center md:text-left flex-col md:flex-row">
-            <div className="text-5xl bg-white w-20 h-20 flex items-center justify-center rounded-2xl shadow-md border border-sky-100">{studentProfile.avatar}</div>
+        {/* --- 1. KHU VỰC THÔNG TIN HỌC SINH (HEADER) --- */}
+        <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 border border-blue-50">
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center text-4xl shadow-inner">
+              👨‍🎓
+            </div>
             <div>
-              <h2 className="text-2xl font-black text-slate-800">{studentProfile.name}</h2>
-              <p className="text-sm font-bold text-[#0284C7] bg-sky-100/60 px-3 py-1 rounded-lg border border-sky-200 mt-1 inline-block">Lớp: {studentProfile.class} — Hệ Thống Toán_TBS</p>
+              <h1 className="text-2xl font-bold text-gray-800">Nguyễn Văn An</h1>
+              <p className="text-blue-500 font-medium mt-1 bg-blue-50 inline-block px-3 py-1 rounded-full text-sm">
+                Lớp: 12A1 — Hệ Thống Toán_TBS
+              </p>
             </div>
           </div>
-          <div className="w-full md:w-96 bg-white/80 p-4 rounded-2xl border border-slate-100 shadow-inner">
-            <div className="flex justify-between items-center mb-2 text-xs font-bold text-slate-600">
-              <span>Danh hiệu: <span className="text-emerald-600 font-extrabold">{studentProfile.rank}</span></span>
-              <span>{studentProfile.exp} / {nextRankExp} EXP</span>
+
+          <div className="w-full md:w-1/3 space-y-2">
+            <div className="flex justify-between items-end text-sm font-semibold">
+              <span className="text-green-600">Danh hiệu: Thợ săn Tích phân</span>
+              <span className="text-gray-600">340 / 500 EXP</span>
             </div>
-            <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden p-0.5 border border-slate-300/30">
-              <div className="bg-gradient-to-r from-[#0284C7] to-[#38BDF8] h-full rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
+            <div className="w-full bg-gray-200 rounded-full h-3">
+              <div className="bg-blue-500 h-3 rounded-full" style={{ width: '68%' }}></div>
             </div>
           </div>
         </div>
 
-        {/* LƯỚI HAI CỘT CHỨA NHIỆM VỤ VÀ BẢNG VÀNG */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* --- 2. TRẠM ĐIỀU HƯỚNG TRUNG TÂM (HỌC - CHƠI - THI ĐẤU) --- */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           
-          {/* CỘT TRÁI: NHIỆM VỤ VÀ FORM UPLOAD CLOUDINARY */}
-          <div className="lg:col-span-7 space-y-6">
-            <h3 className="text-xl font-black text-[#0284C7] px-2 flex items-center gap-2"><span>🎯</span> Nhiệm Vụ Học Tập Thử Thách</h3>
+          {/* Cửa 1: Khu vực Game */}
+          <Link href="/game" className="group block bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl p-6 text-white shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-4xl group-hover:scale-110 transition-transform">🎮</span>
+              <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">Giải Trí</span>
+            </div>
+            <h3 className="text-xl font-bold mb-2">CLB Vui Học Toán</h3>
+            <p className="text-blue-50 text-sm opacity-90">Rèn luyện phản xạ với các bài trắc nghiệm tính giờ kịch tính.</p>
+          </Link>
 
-            {/* FORM NỘP BÀI TỰ LUẬN QUA CLOUDINARY (Khi chọn 1 nhiệm vụ) */}
-            {selectedMission && (
-              <div className="bg-white/90 backdrop-blur-2xl border-2 border-sky-200 p-6 rounded-3xl shadow-2xl animate-fadeIn space-y-4">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                  <h4 className="font-extrabold text-slate-800 text-sm md:text-base">📸 Nộp bài: {selectedMission.title}</h4>
-                  <button onClick={() => { setSelectedMission(null); setPreviewUrl(''); }} className="text-xs font-bold text-slate-400 hover:text-slate-600">Hủy bỏ ×</button>
-                </div>
+          {/* Cửa 2: Khu vực Học Tập & Tài Liệu */}
+          <Link href="department/lectures" className="group block bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl p-6 text-white shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-4xl group-hover:scale-110 transition-transform">📚</span>
+              <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">Học Tập</span>
+            </div>
+            <h3 className="text-xl font-bold mb-2">Kho Tài Liệu Số</h3>
+            <p className="text-emerald-50 text-sm opacity-90">Truy cập chuyên đề, xem bài giảng và tải đề cương ôn tập.</p>
+          </Link>
 
-                <form onSubmit={handleUploadAssignment} className="space-y-4">
-                  <div className="flex flex-col items-center justify-center border-2 border-dashed border-sky-200 bg-sky-50/40 p-6 rounded-2xl relative cursor-pointer group hover:bg-sky-50 transition-colors">
-                    <input 
-                      type="file" 
-                      name="file_assignment" 
-                      accept="image/*" 
-                      onChange={handleFileChange}
-                      className="absolute inset-0 opacity-0 cursor-pointer" 
-                    />
-                    <span className="text-3xl mb-2">📷</span>
-                    <span className="text-xs font-bold text-slate-500 group-hover:text-[#0284C7] transition-colors">Nhấp vào đây để chọn hoặc chụp ảnh bài làm</span>
-                  </div>
+          {/* Cửa 3: Khu vực Thi Đấu Olympic */}
+          <Link href="olympic" className="group block bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-6 text-white shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-4xl group-hover:scale-110 transition-transform">🏆</span>
+              <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">Đỉnh Cao</span>
+            </div>
+            <h3 className="text-xl font-bold mb-2">Đấu Trường Olympic</h3>
+            <p className="text-orange-50 text-sm opacity-90">Thử sức với ngân hàng đề thi chọn học sinh giỏi 30/4.</p>
+          </Link>
 
-                  {/* Hiển thị khung xem trước của bức ảnh trước khi đẩy lên mây */}
-                  {previewUrl && (
-                    <div className="mt-4 border rounded-xl overflow-hidden shadow-inner max-h-48 flex justify-center bg-black/5">
-                      <img src={previewUrl} alt="Preview assignment" className="object-contain h-full" />
-                    </div>
-                  )}
+        </div>
 
-                  <button
-                    type="submit"
-                    disabled={uploading}
-                    className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-extrabold py-3.5 rounded-xl shadow-[0_4px_0_0_#059669] active:translate-y-1 active:shadow-[0_0px_0_0_#059669] transition-all text-xs uppercase tracking-wider disabled:opacity-50"
-                  >
-                    {uploading ? '📡 Đang truyền tải dữ liệu hình ảnh lên Cloudinary...' : 'Đồng bộ bài làm lên Đám Mây 🚀'}
-                  </button>
-                </form>
-              </div>
-            )}
-
+        {/* --- KHU VỰC NỘI DUNG CHÍNH (CHIA CỘT) --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* CỘT TRÁI (2/3): NHIỆM VỤ HÀNG NGÀY */}
+          <div className="lg:col-span-2">
+            <h3 className="text-xl font-extrabold text-blue-600 mb-4 flex items-center gap-2">
+              🎯 Nhiệm Vụ Cần Hoàn Thành
+            </h3>
+            
             <div className="space-y-4">
-              {missions.map((mission) => (
-                <div key={mission.id} className={`bg-white/60 backdrop-blur-md border p-5 rounded-2xl shadow-md flex justify-between items-center gap-4 transition-all ${mission.status === 'completed' ? 'border-emerald-200/60 opacity-80' : 'border-white/80'}`}>
-                  <div className="flex-grow space-y-1 overflow-hidden">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${mission.type === 'olympic' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-sky-100 text-[#0284C7]'}`}>{mission.type === 'olympic' ? '🎯 ĐỘI TUYỂN OLYMPIC' : '📝 TỰ LUẬN'}</span>
-                      <span className="text-xs font-bold text-slate-400">Thưởng: {mission.points}</span>
-                    </div>
-                    <h4 className="font-extrabold text-slate-700 text-sm md:text-base truncate">
-                      {mission.title}
-                      <span className="bg-white/90 px-2 py-0.5 rounded border border-slate-200 ml-1 text-xs text-slate-800 inline-block font-mono"><InlineMath math={mission.math} /></span>
-                    </h4>
+              {/* Thẻ nhiệm vụ 1 */}
+              <div className="bg-white rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between shadow-sm border border-gray-100 gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-2 text-xs font-bold">
+                    <span className="text-blue-500 bg-blue-50 px-2 py-1 rounded">✍️ TỰ LUẬN</span>
+                    <span className="text-gray-400">Thưởng: +40 EXP</span>
                   </div>
-                  <div className="shrink-0">
-                    {mission.status === 'completed' ? (
-                      <span className="bg-emerald-100 text-emerald-700 font-bold text-xs px-4 py-2 rounded-xl border border-emerald-200 block shadow-sm">✓ Đã chấm</span>
-                    ) : (
-                      <button onClick={() => setSelectedMission(mission)} className="bg-gradient-to-r from-[#0284C7] to-[#38BDF8] text-white font-bold text-xs py-2.5 px-5 rounded-xl shadow-[0_3px_0_0_#0369A1] active:translate-y-1 active:shadow-[0_0px_0_0_#0369A1] transition-all uppercase tracking-wider">Nộp bài tự luận 📤</button>
-                    )}
-                  </div>
+                  <h4 className="font-bold text-gray-800 text-lg">
+                    Thử thách tự luận: Phương trình mặt phẳng <span className="bg-gray-100 px-1 rounded text-sm font-mono text-gray-600 border">Oxyz</span>
+                  </h4>
                 </div>
-              ))}
+                <button className="w-full md:w-auto bg-[#1ea4e9] text-white px-5 py-2.5 rounded-xl font-bold shadow hover:bg-blue-600 transition-colors shrink-0">
+                  NỘP BÀI TỰ LUẬN 📤
+                </button>
+              </div>
+
+              {/* Thẻ nhiệm vụ 2 (Đã chấm) */}
+              <div className="bg-white rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between shadow-sm border border-gray-100 gap-4 opacity-80">
+                <div>
+                  <div className="flex items-center gap-2 mb-2 text-xs font-bold">
+                    <span className="text-blue-500 bg-blue-50 px-2 py-1 rounded">✍️ TỰ LUẬN</span>
+                    <span className="text-gray-400">Thưởng: +50 EXP</span>
+                  </div>
+                  <h4 className="font-bold text-gray-800 text-lg">
+                    Ôn tập chương: Tính nguyên hàm bằng phương pháp từng phầ...
+                  </h4>
+                </div>
+                <button className="w-full md:w-auto bg-green-100 text-green-700 px-6 py-2.5 rounded-xl font-bold shrink-0 pointer-events-none">
+                  ✓ Đã chấm
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* CỘT PHẢI: BẢNG VÀNG BẢNG NHÃN */}
-          <div className="lg:col-span-5 bg-white/60 backdrop-blur-xl border border-white/80 shadow-xl rounded-3xl p-6 flex flex-col h-[480px]">
-            <h3 className="text-xl font-black text-amber-600 mb-6 flex items-center gap-2"><span>🏆</span> Bảng Vàng Bảng Nhãn TBS</h3>
-            <div className="flex-grow overflow-y-auto space-y-3 pr-1 custom-scrollbar">
-              {loadingLeaderboard ? (
-                <div className="text-center text-sm font-bold text-slate-400 animate-pulse mt-10">Đang cập nhật...</div>
-              ) : (
-                leaderboard.map((user, index) => (
-                  <div key={index} className={`p-4 rounded-2xl border flex justify-between items-center ${index === 0 ? 'bg-gradient-to-r from-amber-50 to-orange-50/40 border-amber-200' : 'bg-white/80 border-slate-100'}`}>
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <span className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-full font-black text-xs ${index === 0 ? 'bg-amber-400 text-white' : index === 1 ? 'bg-slate-300 text-slate-700' : 'bg-slate-100 text-slate-500'}`}>{index + 1}</span>
-                      <div className="truncate">
-                        <h4 className="font-extrabold text-slate-700 text-sm truncate">{user.name}</h4>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Lớp {user.class} — {user.rank}</p>
-                      </div>
+          {/* CỘT PHẢI (1/3): BẢNG XẾP HẠNG */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+              <h3 className="text-xl font-extrabold text-orange-500 mb-6 flex items-center gap-2">
+                🌟 Bảng Vàng Bảng Nhãn TBS
+              </h3>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border border-yellow-300 bg-yellow-50 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-orange-400 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                      1
                     </div>
-                    <span className="text-xs font-black text-[#0284C7] bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-lg font-mono">{user.exp} EXP</span>
+                    <div>
+                      <h4 className="font-bold text-gray-800">Trần Minh Đức</h4>
+                      <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">LỚP 12A1 — VUA OXYZ</p>
+                    </div>
                   </div>
-                ))
-              )}
+                  <div className="text-blue-500 font-black text-sm bg-blue-100 px-2 py-1 rounded">
+                    520 EXP
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
         </div>
       </div>
-    </main>
+    </div>
   );
 }
