@@ -1,0 +1,3 @@
+module.exports=[97595,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(68242);a.n(d("[project]/toan-tbs-platform/node_modules/next/dist/client/components/builtin/global-error.js <module evaluation>"))},92531,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(68242);a.n(d("[project]/toan-tbs-platform/node_modules/next/dist/client/components/builtin/global-error.js"))},24268,a=>{"use strict";a.i(97595);var b=a.i(92531);a.n(b)},67713,a=>{a.n(a.i(24268))}];
+
+//# sourceMappingURL=0n9h_next_dist_client_components_builtin_global-error_0f8qqc7.js.map

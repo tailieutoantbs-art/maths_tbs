@@ -1,0 +1,14 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/dashboard/page": "/dashboard",
+  "/department/page": "/department",
+  "/editor/page": "/editor",
+  "/exams/page": "/exams",
+  "/favicon.ico/route": "/favicon.ico",
+  "/game/page": "/game",
+  "/login/page": "/login",
+  "/olympic/page": "/olympic",
+  "/page": "/",
+  "/student/page": "/student"
+}

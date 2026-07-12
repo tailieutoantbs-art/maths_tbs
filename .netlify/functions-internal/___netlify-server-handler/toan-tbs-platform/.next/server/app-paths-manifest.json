@@ -1,0 +1,14 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/department/page": "app/department/page.js",
+  "/editor/page": "app/editor/page.js",
+  "/exams/page": "app/exams/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/game/page": "app/game/page.js",
+  "/login/page": "app/login/page.js",
+  "/olympic/page": "app/olympic/page.js",
+  "/page": "app/page.js",
+  "/student/page": "app/student/page.js"
+}

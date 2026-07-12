@@ -1,0 +1,13 @@
+{
+  "app": {
+    "[project]/toan-tbs-platform/app/editor/page": [],
+    "[project]/toan-tbs-platform/app/exams/page": [],
+    "[project]/toan-tbs-platform/app/game/page": [],
+    "[project]/toan-tbs-platform/app/olympic/page": [],
+    "[project]/toan-tbs-platform/app/page": [],
+    "[project]/toan-tbs-platform/app/student/page": []
+  },
+  "appUsingSizeAdjust": false,
+  "pages": {},
+  "pagesUsingSizeAdjust": false
+}

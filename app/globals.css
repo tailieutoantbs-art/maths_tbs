@@ -1,0 +1,5 @@
+@tailwind base;
+@tailwind components;
+@import "tailwindcss";
+
+/* Thầy có thể giữ lại các mã màu tự định nghĩa ở dưới nếu có */

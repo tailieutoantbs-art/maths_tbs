@@ -1,0 +1,3 @@
+module.exports=[25327,a=>{"use strict";var b=a.i(79755);a.s(["default",0,function({children:a}){return(0,b.jsx)("html",{lang:"vi",suppressHydrationWarning:!0,children:(0,b.jsx)("body",{suppressHydrationWarning:!0,children:a})})},"metadata",0,{title:"Hệ thống Toán_TBS",description:"Không gian học tập và làm việc tổ Toán_TBS"}])},9722,a=>{a.n(a.i(25327))}];
+
+//# sourceMappingURL=toan-tbs-platform_app_layout_tsx_0ko9_i0._.js.map
