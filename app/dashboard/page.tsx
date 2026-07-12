@@ -3,8 +3,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 
 export default function UnifiedDashboard() {
-  // Biến trạng thái giả lập phân quyền. 
-  // Thực tế sẽ được bảo vệ bởi components/AuthGuard.tsx và components/StudentGuard.tsx
   const [role, setRole] = useState<'teacher' | 'student'>('teacher'); 
 
   return (
@@ -42,7 +40,6 @@ export default function UnifiedDashboard() {
         {/* ========================================================= */}
         {role === 'teacher' && (
           <div className="space-y-8 animate-fadeIn">
-            
             {/* NHÓM 1: TRỢ LÝ TRÍ TUỆ NHÂN TẠO (AI) */}
             <div>
                <h3 className="text-xl font-extrabold text-indigo-700 mb-4 flex items-center gap-2 border-b-2 border-indigo-100 pb-2">
@@ -126,40 +123,70 @@ export default function UnifiedDashboard() {
         {/* ================== PHÂN HỆ HỌC SINH ===================== */}
         {/* ========================================================= */}
         {role === 'student' && (
-          <div className="space-y-6 animate-fadeIn">
+          <div className="space-y-8 animate-fadeIn">
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Trang chủ học sinh */}
-              <Link href="/student" className="col-span-1 md:col-span-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-6 text-white shadow-md hover:shadow-lg transition-all flex items-center justify-between">
-                <div>
-                  <h3 className="text-2xl font-bold mb-2">Bảng Tiến Độ Cá Nhân</h3>
-                  <p className="text-blue-50 text-sm">Xem tổng quan điểm số, nhiệm vụ hàng ngày và xếp hạng của em.</p>
-                </div>
-                <div className="text-5xl">📊</div>
-              </Link>
-
-              {/* Bài giảng */}
-              <Link href="/student/lectures" className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1 group text-center">
-                <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">📖</div>
-                <h4 className="font-bold text-gray-800 text-xl mb-2">Vào Lớp Học</h4>
-                <p className="text-sm text-gray-500">Xem video bài giảng và tài liệu giáo viên giao.</p>
-              </Link>
-
-              {/* Thi cử */}
-              <Link href="/student/exams" className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1 group text-center">
-                <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">📝</div>
-                <h4 className="font-bold text-gray-800 text-xl mb-2">Phòng Thi Số</h4>
-                <p className="text-sm text-gray-500">Làm bài kiểm tra, bài thi định kỳ tính điểm.</p>
-              </Link>
-
-              {/* Hồ sơ */}
-              <Link href="/student/profile" className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1 group text-center">
-                <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">👨‍🎓</div>
-                <h4 className="font-bold text-gray-800 text-xl mb-2">Hồ Sơ Của Em</h4>
-                <p className="text-sm text-gray-500">Cập nhật thông tin, danh hiệu và lịch sử làm bài.</p>
-              </Link>
-
+            <div className="flex items-center justify-between border-b-2 border-blue-100 pb-4">
+              <h2 className="text-2xl font-extrabold text-gray-800 uppercase tracking-wider flex items-center gap-3">
+                <span className="text-3xl">👨‍🎓</span> Không Gian Rèn Luyện
+              </h2>
+              <div className="text-sm font-bold text-blue-600 bg-blue-50 px-4 py-2 rounded-full">
+                Cấp độ: Thợ săn Tích phân
+              </div>
             </div>
+
+            {/* NHÓM 1: ĐẤU TRƯỜNG & GAME (Nổi bật nhất) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Link href="/games" className="group block bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl p-6 text-white shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden">
+                <div className="relative z-10">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-5xl group-hover:scale-110 transition-transform">🎮</span>
+                    <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Giải Trí</span>
+                  </div>
+                  <h3 className="text-2xl font-bold mb-2">CLB VUI HỌC TOÁN</h3>
+                  <p className="text-blue-50 text-sm opacity-90 mb-4">Luyện phản xạ trắc nghiệm nhanh, đếm ngược kịch tính & leo rank bảng vàng.</p>
+                  <span className="inline-block bg-white text-blue-600 font-black px-6 py-2 rounded-full text-sm uppercase">Chơi ngay</span>
+                </div>
+              </Link>
+
+              <Link href="/olympic" className="group block bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-6 text-white shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden">
+                <div className="relative z-10">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-5xl group-hover:scale-110 transition-transform">🏆</span>
+                    <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Mũi Nhọn</span>
+                  </div>
+                  <h3 className="text-2xl font-bold mb-2">ĐẤU TRƯỜNG OLYMPIC</h3>
+                  <p className="text-orange-50 text-sm opacity-90 mb-4">Thử sức với ngân hàng đề thi học sinh giỏi 30/4 vận dụng cao.</p>
+                  <span className="inline-block bg-white text-orange-600 font-black px-6 py-2 rounded-full text-sm uppercase">Tham gia ngay</span>
+                </div>
+              </Link>
+            </div>
+
+            {/* NHÓM 2: HỌC TẬP CHÍNH KHÓA */}
+            <div>
+              <h3 className="text-xl font-extrabold text-blue-700 mb-4 mt-4">📚 HỌC TẬP & ĐÁNH GIÁ</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                
+                <Link href="/student/lectures" className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1 group">
+                  <div className="text-4xl mb-3 group-hover:scale-110 transition-transform origin-left">📖</div>
+                  <h4 className="font-bold text-gray-800 text-lg mb-1">Bài Giảng & Tài Liệu</h4>
+                  <p className="text-sm text-gray-500">Xem video bài giảng và tải các đề cương học tập.</p>
+                </Link>
+
+                <Link href="/student/exams" className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1 group">
+                  <div className="text-4xl mb-3 group-hover:scale-110 transition-transform origin-left">📝</div>
+                  <h4 className="font-bold text-gray-800 text-lg mb-1">Phòng Thi Số</h4>
+                  <p className="text-sm text-gray-500">Tham gia các bài kiểm tra định kỳ lấy điểm.</p>
+                </Link>
+
+                <Link href="/student/profile" className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1 group">
+                  <div className="text-4xl mb-3 group-hover:scale-110 transition-transform origin-left">👤</div>
+                  <h4 className="font-bold text-gray-800 text-lg mb-1">Hồ Sơ Của Em</h4>
+                  <p className="text-sm text-gray-500">Xem lịch sử làm bài, điểm số và các nhiệm vụ cần hoàn thành.</p>
+                </Link>
+
+              </div>
+            </div>
+
           </div>
         )}
 
