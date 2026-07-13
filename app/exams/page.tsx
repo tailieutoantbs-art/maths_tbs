@@ -38,7 +38,7 @@ export default function AdvancedExamsControlCenter() {
   const [editTextValue, setEditTextValue] = useState('');
 
   // ==========================================
-  // STATE CỦA TAB 1: BIÊN SOẠN AI
+  // STATE CỦA TAB 3: BIÊN SOẠN AI
   // ==========================================
   const [topic, setTopic] = useState('');
   const [examConfig, setExamConfig] = useState({
@@ -51,6 +51,25 @@ export default function AdvancedExamsControlCenter() {
   const [generatedPrompt, setGeneratedPrompt] = useState('');
   const [jsonInput, setJsonInput] = useState('');
   const [generatedQuestions, setGeneratedQuestions] = useState<any[]>([]);
+
+  // ==========================================
+  // CÁC HÀM XỬ LÝ ĐÃ ĐƯỢC BỔ SUNG ĐẦY ĐỦ
+  // ==========================================
+
+  // Hàm cập nhật cấu hình cho Tab 3
+  const updateConfig = (type: 'MCQ' | 'TF' | 'SA' | 'LA', field: 'count' | 'level', value: any) => {
+    setExamConfig(prev => ({
+      ...prev,
+      [type]: { ...prev[type], [field]: field === 'count' ? Number(value) : value }
+    }));
+  };
+
+  // Hàm copy lệnh cho Tab 3
+  const handleCopyPrompt = () => {
+    if (!generatedPrompt) return;
+    navigator.clipboard.writeText(generatedPrompt);
+    showToast('info', 'Đã sao chép Prompt vào khay nhớ tạm!');
+  };
 
   // Tải toàn bộ kho dữ liệu câu hỏi từ Firebase
   const loadBankQuestions = async () => {
@@ -164,7 +183,7 @@ export default function AdvancedExamsControlCenter() {
     }
     if (examConfig.TF.count > 0) {
       requestedTypes.push(`- ${examConfig.TF.count} câu Trắc nghiệm Đúng/Sai (TF) - Mức độ: ${examConfig.TF.level}`);
-      jsonTemplateExamples.push(`  { "type": "TF", "question": "Câu hỏi gốc chứa LaTeX", "level": "${examConfig.TF.level}", "statements": [ { "id": "a", "text": "Phát biểu a", "correct": true }, { "id": "b", "text": "Phát biểu b", "correct": false } ], "source": "Nguồn" }`);
+      jsonTemplateExamples.push(`  { "type": "TF", "question": "Câu hỏi gốc chứa LaTeX", "level": "${examConfig.TF.level}", "statements": [ { "id": "a", "text": "Phát biểu a", "correct": true }, { "id": "b", "text": "Phát biểu b", "correct": false }, { "id": "c", "text": "Phát biểu c", "correct": true }, { "id": "d", "text": "Phát biểu d", "correct": false } ], "source": "Nguồn" }`);
     }
     if (examConfig.SA.count > 0) {
       requestedTypes.push(`- ${examConfig.SA.count} câu Trả lời ngắn (SA) - Mức độ: ${examConfig.SA.level}`);
@@ -175,7 +194,7 @@ export default function AdvancedExamsControlCenter() {
       jsonTemplateExamples.push(`  { "type": "LA", "question": "Câu tự luận chứa LaTeX", "level": "${examConfig.LA.level}", "correctAnswer": "Hướng dẫn giải chi tiết", "source": "Nguồn" }`);
     }
 
-    const promptText = `Bạn là chuyên gia biên soạn đề thi môn Toán cấp THPT. Hãy tạo mảng JSON gồm các câu hỏi về chủ đề "${topic}".\nMA TRẬN CẦU CỨU:\n${requestedTypes.join('\n')}\nNGUỒN THAM CHIẾU:\n${referenceSource.trim() ? referenceSource : 'Chuẩn GDPT môn Toán.'}\n\nYÊU CẦU MÃ: Công thức Toán viết bằng LaTeX (Ví dụ: \\\\int x dx). Trả về duy nhất mảng JSON thuần không bọc markdown.\n\nCẤU TRÚC MẪU:\n[\n${jsonTemplateExamples.join(',\n')}\n]`;
+    const promptText = `Bạn là chuyên gia biên soạn đề thi môn Toán cấp THPT. Hãy tạo mảng JSON gồm các câu hỏi về chủ đề "${topic}".\nMA TRẬN YÊU CẦU:\n${requestedTypes.join('\n')}\nNGUỒN THAM CHIẾU:\n${referenceSource.trim() ? referenceSource : 'Chuẩn GDPT môn Toán.'}\n\nYÊU CẦU MÃ: Công thức Toán viết bằng LaTeX (Ví dụ: \\\\int x dx). Trả về duy nhất mảng JSON thuần không bọc markdown.\n\nCẤU TRÚC MẪU:\n[\n${jsonTemplateExamples.join(',\n')}\n]`;
     setGeneratedPrompt(promptText);
     showToast('success', 'Đã tạo xong Prompt cấu trúc ma trận!');
   };
@@ -205,7 +224,7 @@ export default function AdvancedExamsControlCenter() {
     }
   };
 
-  // XUẤT ĐỀ THI VÀ GIAO CHO HỌC SINH (Publish and Sync Assignment)
+  // XUẤT ĐỀ THI VÀ GIAO CHO HỌC SINH
   const handlePublishExam = async () => {
     if (selectedQuestionIds.length === 0) {
       showToast('warning', 'Thầy chưa chọn câu hỏi nào để đóng gói đề thi!');
@@ -281,7 +300,7 @@ export default function AdvancedExamsControlCenter() {
             </div>
           </div>
 
-          {/* --- THANH TẮP NAVEGATION HỆ THỐNG --- */}
+          {/* --- THANH TAB NAVEGATION HỆ THỐNG --- */}
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-2">
             <button onClick={() => setActiveTab('explorer')} className={`px-5 py-2.5 rounded-xl font-extrabold text-xs uppercase transition-all ${activeTab === 'explorer' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}>
               🗂️ 1. Khai Thác & Bộ Lọc Đa Tầng ({filteredQuestions.length})
@@ -299,13 +318,9 @@ export default function AdvancedExamsControlCenter() {
             </button>
           </div>
 
-          {/* ========================================================================= */}
           {/* ================= TAB 1: BỘ LỌC ĐA TẦNG VÀ KHAI THÁC NGÂN HÀNG ============= */}
-          {/* ========================================================================= */}
           {activeTab === 'explorer' && (
             <div className="space-y-4 animate-fadeIn">
-              
-              {/* BỘ LỌC NÂNG CAO (ADVANCED SEARCH FILTER BAR) */}
               <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
                 <div>
                   <input 
@@ -341,7 +356,6 @@ export default function AdvancedExamsControlCenter() {
                 </div>
               </div>
 
-              {/* KHU VỰC HIỂN THỊ DẠNG GRID/LIST GỌN GÀNG VÀ CHỌN LỌC CAO */}
               {isFetchingBank ? (
                 <div className="bg-white p-12 text-center rounded-2xl shadow-sm font-bold text-slate-400 animate-pulse">
                   Đang truy vấn cơ sở dữ liệu kho câu hỏi...
@@ -382,7 +396,6 @@ export default function AdvancedExamsControlCenter() {
                       </div>
                     );
                   })}
-
                   {filteredQuestions.length === 0 && (
                     <div className="col-span-full bg-white p-12 text-center rounded-2xl text-slate-400 font-bold">
                       Không tìm thấy câu hỏi nào khớp với bộ lọc hiện tại.
@@ -393,13 +406,9 @@ export default function AdvancedExamsControlCenter() {
             </div>
           )}
 
-          {/* ========================================================================= */}
           {/* ================= TAB 2: ĐÓNG GÓI PHÔI ĐỀ THI & XEM TRƯỚC/CHỈNH SỬA ============ */}
-          {/* ========================================================================= */}
           {activeTab === 'matrix' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
-              
-              {/* CỘT TRÁI: ĐIỀU PHỐI HÀNH CHÍNH ĐỀ THI */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-4">
                   <h3 className="text-xs font-black text-indigo-700 uppercase tracking-wider border-b border-indigo-50 pb-3">
@@ -436,11 +445,8 @@ export default function AdvancedExamsControlCenter() {
                 </div>
               </div>
 
-              {/* CỘT PHẢI: PHÔI ĐỀ THI SƯ PHẠM TRỰC QUAN (PREVIEW & INLINE CANVAS EDITOR) */}
               <div className="lg:col-span-2">
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px] flex flex-col">
-                  
-                  {/* TIÊU ĐỀ BẢN IN TRƯỜNG THANH BÌNH */}
                   <div className="p-8 border-b border-gray-100 space-y-6 bg-slate-50/50">
                     <div className="flex justify-between items-start border-b-2 border-dashed border-slate-300 pb-4 text-center">
                       <div className="w-1/2 space-y-1">
@@ -457,7 +463,6 @@ export default function AdvancedExamsControlCenter() {
                     </div>
                   </div>
 
-                  {/* NỘI DUNG DANH SÁCH CÂU HỎI ĐƯỢC LỌC RA */}
                   <div className="flex-1 p-8 space-y-6 overflow-y-auto bg-white">
                     {selectedQuestionIds.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-3 opacity-60 py-20">
@@ -477,7 +482,6 @@ export default function AdvancedExamsControlCenter() {
                               </div>
                             </div>
 
-                            {/* CHẾ ĐỘ CHỈNH SỬA NHÚNG TRỰC TIẾP TRÊN FORM */}
                             {editingQuestionId === q.id ? (
                               <div className="space-y-2 mt-2">
                                 <textarea
@@ -497,7 +501,6 @@ export default function AdvancedExamsControlCenter() {
                               </div>
                             )}
 
-                            {/* HIỂN THỊ ĐÁP ÁN ĐI KÈM DÀNH CHO GIÁO VIÊN DUYỆT */}
                             {q.type === 'MCQ' && q.options && (
                               <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 pl-4">
                                 {Object.entries(q.options).map(([key, value]: any) => (
@@ -541,9 +544,7 @@ export default function AdvancedExamsControlCenter() {
             </div>
           )}
 
-          {/* ========================================================================= */}
           {/* ================= TAB 3: BIÊN SOẠN & NẠP CÂU HỎI MỚI BẰNG AI ============= */}
-          {/* ========================================================================= */}
           {activeTab === 'create' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fadeIn">
               <div className="space-y-6">
