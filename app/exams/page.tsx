@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { useToast } from '@/components/ToastProvider';
 import 'katex/dist/katex.min.css';
 import { BlockMath } from 'react-katex';
@@ -13,397 +13,303 @@ export default function ExamsPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
+  // --- TRẠNG THÁI ĐIỀU HƯỚNG TAB ---
+  const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
+
+  // =========================================================================
+  // ==================== TAB 1: LOGIC BIÊN SOẠN BẰNG AI =====================
+  // =========================================================================
   const [topic, setTopic] = useState('');
-  
-  // Cấu hình Ma trận đề thi (Số lượng và Mức độ cho từng dạng)
   const [examConfig, setExamConfig] = useState({
     MCQ: { count: 0, level: 'Thông hiểu' },
     TF: { count: 0, level: 'Thông hiểu' },
     SA: { count: 0, level: 'Vận dụng' },
     LA: { count: 0, level: 'Vận dụng cao' }
   });
-  
   const [referenceSource, setReferenceSource] = useState('');
   const [generatedPrompt, setGeneratedPrompt] = useState('');
   const [jsonInput, setJsonInput] = useState('');
   const [generatedQuestions, setGeneratedQuestions] = useState<any[]>([]);
 
-  // Hàm cập nhật cấu hình ma trận
   const updateConfig = (type: 'MCQ' | 'TF' | 'SA' | 'LA', field: 'count' | 'level', value: any) => {
-    setExamConfig(prev => ({
-      ...prev,
-      [type]: { ...prev[type], [field]: field === 'count' ? Number(value) : value }
-    }));
+    setExamConfig(prev => ({ ...prev, [type]: { ...prev[type], [field]: field === 'count' ? Number(value) : value } }));
   };
 
   const handleGeneratePrompt = () => {
-    if (!topic.trim()) {
-      showToast('warning', 'Thầy vui lòng nhập chủ đề / yêu cầu chi tiết trước nhé!');
-      return;
-    }
-
+    if (!topic.trim()) { showToast('warning', 'Vui lòng nhập chủ đề / yêu cầu chi tiết!'); return; }
     const totalQuestions = examConfig.MCQ.count + examConfig.TF.count + examConfig.SA.count + examConfig.LA.count;
-    if (totalQuestions === 0) {
-      showToast('warning', 'Thầy vui lòng nhập số lượng cho ít nhất 1 dạng câu hỏi!');
-      return;
-    }
+    if (totalQuestions === 0) { showToast('warning', 'Vui lòng nhập số lượng cho ít nhất 1 dạng!'); return; }
 
-    // Xây dựng danh sách yêu cầu và mẫu JSON động dựa trên cấu hình
     let requestedTypes = [];
     let jsonTemplateExamples = [];
 
     if (examConfig.MCQ.count > 0) {
       requestedTypes.push(`- ${examConfig.MCQ.count} câu Trắc nghiệm 4 lựa chọn (MCQ) - Mức độ: ${examConfig.MCQ.level}`);
-      jsonTemplateExamples.push(`  {
-    "type": "MCQ",
-    "question": "Nội dung câu hỏi chứa LaTeX",
-    "level": "${examConfig.MCQ.level}",
-    "options": { "A": "Đáp án A", "B": "Đáp án B", "C": "Đáp án C", "D": "Đáp án D" },
-    "correctAnswer": "A",
-    "source": "Trích dẫn nguồn"
-  }`);
+      jsonTemplateExamples.push(`  { "type": "MCQ", "question": "Câu hỏi LaTeX", "level": "${examConfig.MCQ.level}", "options": { "A": "Đáp án A", "B": "Đáp án B", "C": "Đáp án C", "D": "Đáp án D" }, "correctAnswer": "A", "source": "Nguồn" }`);
     }
-
     if (examConfig.TF.count > 0) {
       requestedTypes.push(`- ${examConfig.TF.count} câu Trắc nghiệm Đúng/Sai (TF) - Mức độ: ${examConfig.TF.level}`);
-      jsonTemplateExamples.push(`  {
-    "type": "TF",
-    "question": "Nội dung câu hỏi gốc chứa LaTeX",
-    "level": "${examConfig.TF.level}",
-    "statements": [
-      { "id": "a", "text": "Phát biểu a", "correct": true },
-      { "id": "b", "text": "Phát biểu b", "correct": false },
-      { "id": "c", "text": "Phát biểu c", "correct": true },
-      { "id": "d", "text": "Phát biểu d", "correct": false }
-    ],
-    "source": "Trích dẫn nguồn"
-  }`);
+      jsonTemplateExamples.push(`  { "type": "TF", "question": "Câu hỏi LaTeX", "level": "${examConfig.TF.level}", "statements": [ { "id": "a", "text": "Phát biểu a", "correct": true }, { "id": "b", "text": "Phát biểu b", "correct": false }, { "id": "c", "text": "Phát biểu c", "correct": true }, { "id": "d", "text": "Phát biểu d", "correct": false } ], "source": "Nguồn" }`);
     }
-
     if (examConfig.SA.count > 0) {
-      requestedTypes.push(`- ${examConfig.SA.count} câu Trả lời ngắn / Điền số (SA) - Mức độ: ${examConfig.SA.level}`);
-      jsonTemplateExamples.push(`  {
-    "type": "SA",
-    "question": "Nội dung câu hỏi điền đáp số chứa LaTeX",
-    "level": "${examConfig.SA.level}",
-    "correctAnswer": "Giá trị số hoặc phân số",
-    "source": "Trích dẫn nguồn"
-  }`);
+      requestedTypes.push(`- ${examConfig.SA.count} câu Trả lời ngắn (SA) - Mức độ: ${examConfig.SA.level}`);
+      jsonTemplateExamples.push(`  { "type": "SA", "question": "Câu hỏi LaTeX", "level": "${examConfig.SA.level}", "correctAnswer": "Giá trị số", "source": "Nguồn" }`);
     }
-
     if (examConfig.LA.count > 0) {
       requestedTypes.push(`- ${examConfig.LA.count} câu Tự luận (LA) - Mức độ: ${examConfig.LA.level}`);
-      jsonTemplateExamples.push(`  {
-    "type": "LA",
-    "question": "Nội dung câu hỏi tự luận chứa LaTeX",
-    "level": "${examConfig.LA.level}",
-    "correctAnswer": "Lời giải chi tiết từng bước (có chứa LaTeX)",
-    "source": "Trích dẫn nguồn"
-  }`);
+      jsonTemplateExamples.push(`  { "type": "LA", "question": "Câu hỏi tự luận LaTeX", "level": "${examConfig.LA.level}", "correctAnswer": "Lời giải LaTeX", "source": "Nguồn" }`);
     }
 
-    const promptText = `Bạn là một chuyên gia biên soạn đề thi môn Toán cấp trung học phổ thông.
-Hãy tạo ra một bộ đề thi (gồm ${totalQuestions} câu) về chủ đề "${topic}".
-
-CẤU TRÚC MA TRẬN YÊU CẦU:
-${requestedTypes.join('\n')}
-
-==================================================
-NGUỒN DỮ LIỆU THAM CHIẾU CHUẨN (GROUNDING SOURCE):
-${referenceSource.trim() ? referenceSource : 'Không có nguồn cụ thể được cung cấp. Hãy sử dụng kiến thức chuẩn của Chương trình GDPT 2018 môn Toán.'}
-==================================================
-
-YÊU CẦU BẮT BUỘC VÀ KIỂM SOÁT TÍNH ĐÚNG ĐẮN:
-1. TUYỆT ĐỐI chỉ sử dụng kiến thức, số liệu, và thuật ngữ từ "NGUỒN DỮ LIỆU THAM CHIẾU CHUẨN" bên trên để thiết kế câu hỏi. KHÔNG TỰ BỊA ĐẶT KIẾN THỨC.
-2. Tất cả công thức toán học PHẢI được viết bằng mã LaTeX tiêu chuẩn (Ví dụ: \\int_{0}^{1} x dx hoặc \\vec{a} = (x; y; z)). 
-3. Tuyệt đối KHÔNG dùng ký hiệu $ đơn hay $$ để bọc công thức.
-4. Chỉ trả về duy nhất một mảng JSON thuần túy (Array of Objects) chứa toàn bộ các câu hỏi trên, không kèm theo văn bản giải thích hay ký hiệu markdown \`\`\`json. 
-
-MẪU CẤU TRÚC JSON YÊU CẦU:
-[
-${jsonTemplateExamples.join(',\n')}
-]`;
-
+    const promptText = `Bạn là chuyên gia ra đề Toán THPT. Hãy tạo ${totalQuestions} câu về "${topic}".\n\nCẤU TRÚC MA TRẬN:\n${requestedTypes.join('\n')}\n\nNGUỒN THAM CHIẾU (BẮT BUỘC TUÂN THỦ):\n${referenceSource.trim() ? referenceSource : 'Sách giáo khoa Toán GDPT 2018.'}\n\nYÊU CẦU:\n1. Bám sát nguồn, không bịa đặt.\n2. Công thức bọc trong mã LaTeX (VD: \\int x dx).\n3. Trả về MẢNG JSON thuần túy (Không dùng \`\`\`json).\n\nMẪU:\n[\n${jsonTemplateExamples.join(',\n')}\n]`;
     setGeneratedPrompt(promptText);
-    showToast('success', 'Đã tạo Prompt Ma trận đề thi thành công!');
+    showToast('success', 'Đã tạo Prompt Ma trận đề thi!');
   };
 
   const handleCopyPrompt = () => {
     if (!generatedPrompt) return;
     navigator.clipboard.writeText(generatedPrompt);
-    showToast('info', 'Đã sao chép Prompt vào khay nhớ tạm!');
+    showToast('info', 'Đã copy Prompt!');
   };
 
   const handleParseJSON = () => {
-    if (!jsonInput.trim()) {
-      showToast('warning', 'Thầy chưa dán kết quả JSON từ AI trả về!');
-      return;
-    }
-
     try {
       const cleanedInput = jsonInput.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsedData = JSON.parse(cleanedInput);
-      
-      if (Array.isArray(parsedData)) {
-        setGeneratedQuestions(parsedData);
-        showToast('success', `Phân tích thành công ${parsedData.length} câu hỏi! Mời thầy duyệt đề.`);
-      } else {
-        setGeneratedQuestions([parsedData]);
-        showToast('success', 'Phân tích dữ liệu JSON thành công!');
-      }
+      setGeneratedQuestions(Array.isArray(parsedData) ? parsedData : [parsedData]);
+      showToast('success', 'Dịch JSON thành công!');
       setJsonInput(''); 
     } catch (error) {
-      showToast('error', 'Lỗi cú pháp JSON. Thầy kiểm tra lại dữ liệu copy từ AI nhé!');
-      console.error(error);
+      showToast('error', 'Lỗi cú pháp JSON!');
     }
   };
 
-  const handleSaveToBank = async (q: any) => {
+  // NÚT MỚI: LƯU ĐỒNG LOẠT
+  const handleSaveAllToBank = async () => {
+    if (generatedQuestions.length === 0) return;
     try {
-      await addDoc(collection(db, 'cauhoi_nganhang'), {
-        ...q,
-        createdAt: serverTimestamp()
-      });
-      showToast('success', 'Đã lưu câu hỏi vào ngân hàng đề thi TBS!');
-      // Loại bỏ câu hỏi đã lưu khỏi danh sách duyệt
-      setGeneratedQuestions(prev => prev.filter(item => item !== q));
+      showToast('info', 'Đang lưu vào ngân hàng...');
+      for (const q of generatedQuestions) {
+        await addDoc(collection(db, 'cauhoi_nganhang'), { ...q, createdAt: serverTimestamp() });
+      }
+      showToast('success', `Đã lưu thành công ${generatedQuestions.length} câu hỏi!`);
+      setGeneratedQuestions([]);
     } catch (error) {
-      showToast('error', 'Lưu trữ câu hỏi thất bại.');
+      showToast('error', 'Có lỗi khi lưu đồng loạt.');
     }
   };
+
+  const handleSaveSingleToBank = async (q: any) => {
+    try {
+      await addDoc(collection(db, 'cauhoi_nganhang'), { ...q, createdAt: serverTimestamp() });
+      showToast('success', 'Đã lưu câu hỏi!');
+      setGeneratedQuestions(prev => prev.filter(item => item !== q));
+    } catch (error) {
+      showToast('error', 'Lưu thất bại.');
+    }
+  };
+
+
+  // =========================================================================
+  // ==================== TAB 2: LOGIC KHO & GIAO ĐỀ (MỚI) ===================
+  // =========================================================================
+  const [bankQuestions, setBankQuestions] = useState<any[]>([]);
+  const [isFetchingBank, setIsFetchingBank] = useState(false);
+
+  const fetchBankQuestions = async () => {
+    setIsFetchingBank(true);
+    try {
+      const q = query(collection(db, 'cauhoi_nganhang'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const questionsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setBankQuestions(questionsData);
+    } catch (error) {
+      showToast('error', 'Không thể tải dữ liệu ngân hàng đề.');
+    } finally {
+      setIsFetchingBank(false);
+    }
+  };
+
+  // Tự động tải kho câu hỏi khi chuyển sang Tab Quản lý
+  useEffect(() => {
+    if (activeTab === 'manage') {
+      fetchBankQuestions();
+    }
+  }, [activeTab]);
+
 
   return (
     <AuthGuard>
       <main className="min-h-screen bg-[#E0F2FE] p-4 md:p-8 text-slate-700">
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           
-          {/* THANH TIÊU ĐỀ */}
-          <div className="bg-white/60 backdrop-blur-xl border border-white/80 p-6 rounded-3xl shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full uppercase tracking-widest">
-                QUẢN LÝ CHUYÊN MÔN & NGÂN HÀNG ĐỀ THI
-              </span>
-              <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600 uppercase tracking-wide mt-2">
-                Bộ Tạo Prompt Ma Trận Đề
-              </h1>
-              <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">
-                Thiết lập đồng thời nhiều dạng thức: MCQ, Đúng/Sai, Trả lời ngắn, Tự luận
-              </p>
+          {/* HEADER & TAB NAVIGATION */}
+          <div className="bg-white/80 backdrop-blur-xl border border-white p-6 rounded-3xl shadow-lg flex flex-col gap-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full uppercase tracking-widest">
+                  QUẢN LÝ CHUYÊN MÔN
+                </span>
+                <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600 uppercase tracking-wide mt-2">
+                  Hệ Thống Ngân Hàng Đề Thi
+                </h1>
+              </div>
+              <button onClick={() => router.push('/dashboard')} className="px-5 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 text-xs uppercase shadow-sm">
+                ⬅ Về Dashboard
+              </button>
             </div>
-            <button 
-              onClick={() => router.push('/dashboard')}
-              className="px-5 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all text-xs uppercase shadow-sm"
-            >
-              ⬅ Về Dashboard
-            </button>
+            
+            {/* CÔNG TẮC CHUYỂN TAB */}
+            <div className="flex gap-2 mt-2 bg-slate-100 p-1.5 rounded-xl w-fit">
+              <button 
+                onClick={() => setActiveTab('create')}
+                className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'create' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                1. Biên Soạn (Trợ Lý AI)
+              </button>
+              <button 
+                onClick={() => setActiveTab('manage')}
+                className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'manage' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                2. Kho Dữ Liệu & Giao Đề Học Sinh
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* CỘT TRÁI: THIẾT LẬP CẤU HÌNH & XUẤT PROMPT */}
-            <div className="space-y-6">
-              
-              <div className="bg-white/80 backdrop-blur-md border border-white p-6 rounded-3xl shadow-xl space-y-5">
-                <h3 className="text-xs font-black text-emerald-700 uppercase tracking-wider border-b border-emerald-100 pb-3">
-                  Bước 1: Thiết lập Cấu trúc Ma trận & Neo dữ liệu
-                </h3>
-                
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1.5">Chủ đề / Yêu cầu chi tiết:</label>
-                  <input 
-                    type="text" 
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    placeholder="VD: Viết bộ đề kiểm tra 15 phút về Xác suất thực nghiệm..."
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 text-sm font-bold shadow-inner"
-                  />
-                </div>
-
-                {/* BẢNG CẤU HÌNH CÁC DẠNG CÂU HỎI */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wide mb-2">Cấu hình dạng thức đề thi:</label>
-                  
-                  {/* Row MCQ */}
-                  <div className="flex items-center gap-3">
-                    <span className="w-16 font-bold text-xs text-slate-700">MCQ:</span>
-                    <input type="number" min="0" value={examConfig.MCQ.count} onChange={(e) => updateConfig('MCQ', 'count', e.target.value)} className="w-16 p-2 rounded-lg border border-slate-300 text-sm text-center focus:ring-1 focus:ring-emerald-400" placeholder="Số lượng" />
-                    <select value={examConfig.MCQ.level} onChange={(e) => updateConfig('MCQ', 'level', e.target.value)} className="flex-1 p-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-emerald-400">
-                      <option>Nhận biết</option><option>Thông hiểu</option><option>Vận dụng</option><option>Vận dụng cao</option>
-                    </select>
-                  </div>
-                  
-                  {/* Row TF */}
-                  <div className="flex items-center gap-3">
-                    <span className="w-16 font-bold text-xs text-slate-700">Đúng/Sai:</span>
-                    <input type="number" min="0" value={examConfig.TF.count} onChange={(e) => updateConfig('TF', 'count', e.target.value)} className="w-16 p-2 rounded-lg border border-slate-300 text-sm text-center focus:ring-1 focus:ring-emerald-400" />
-                    <select value={examConfig.TF.level} onChange={(e) => updateConfig('TF', 'level', e.target.value)} className="flex-1 p-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-emerald-400">
-                      <option>Nhận biết</option><option>Thông hiểu</option><option>Vận dụng</option><option>Vận dụng cao</option>
-                    </select>
+          {/* ======================= HIỂN THỊ TAB 1 ======================= */}
+          {activeTab === 'create' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fadeIn">
+              {/* CỘT TRÁI: THIẾT LẬP */}
+              <div className="space-y-6">
+                <div className="bg-white/90 backdrop-blur-md p-6 rounded-3xl shadow-xl space-y-5">
+                  <h3 className="text-xs font-black text-emerald-700 uppercase tracking-wider border-b border-emerald-100 pb-3">Bước 1: Ma Trận Đề & Nguồn</h3>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1.5">Chủ đề:</label>
+                    <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Nhập chủ đề..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 text-sm font-bold shadow-inner" />
                   </div>
 
-                  {/* Row SA */}
-                  <div className="flex items-center gap-3">
-                    <span className="w-16 font-bold text-xs text-slate-700">Trả lời ngắn:</span>
-                    <input type="number" min="0" value={examConfig.SA.count} onChange={(e) => updateConfig('SA', 'count', e.target.value)} className="w-16 p-2 rounded-lg border border-slate-300 text-sm text-center focus:ring-1 focus:ring-emerald-400" />
-                    <select value={examConfig.SA.level} onChange={(e) => updateConfig('SA', 'level', e.target.value)} className="flex-1 p-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-emerald-400">
-                      <option>Nhận biết</option><option>Thông hiểu</option><option>Vận dụng</option><option>Vận dụng cao</option>
-                    </select>
-                  </div>
-
-                  {/* Row LA */}
-                  <div className="flex items-center gap-3">
-                    <span className="w-16 font-bold text-xs text-slate-700">Tự luận:</span>
-                    <input type="number" min="0" value={examConfig.LA.count} onChange={(e) => updateConfig('LA', 'count', e.target.value)} className="w-16 p-2 rounded-lg border border-slate-300 text-sm text-center focus:ring-1 focus:ring-emerald-400" />
-                    <select value={examConfig.LA.level} onChange={(e) => updateConfig('LA', 'level', e.target.value)} className="flex-1 p-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-emerald-400">
-                      <option>Nhận biết</option><option>Thông hiểu</option><option>Vận dụng</option><option>Vận dụng cao</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-[10px] font-black text-emerald-600 uppercase tracking-wide mb-1.5">
-                    📚 Nguồn dữ liệu chuẩn (NotebookLM, SGK):
-                  </label>
-                  <textarea 
-                    value={referenceSource}
-                    onChange={(e) => setReferenceSource(e.target.value)}
-                    placeholder="Dán tóm tắt kiến thức từ sách giáo khoa hoặc dữ liệu chuẩn để khống chế phạm vi đề thi..."
-                    className="w-full h-24 p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl text-xs font-medium focus:outline-none resize-none focus:ring-2 focus:ring-emerald-300 placeholder:text-emerald-400/70"
-                  />
-                </div>
-
-                <button
-                  onClick={handleGeneratePrompt}
-                  className="w-full py-3 bg-emerald-100 text-emerald-700 font-extrabold rounded-xl hover:bg-emerald-200 transition-all text-xs uppercase tracking-wider shadow-sm"
-                >
-                  ⚡ Khởi Tạo Lệnh Prompt Đa Dạng
-                </button>
-              </div>
-
-              <div className="bg-white/80 backdrop-blur-md border border-white p-6 rounded-3xl shadow-xl space-y-4 transition-all">
-                <div className="flex justify-between items-center border-b border-sky-100 pb-3">
-                  <h3 className="text-xs font-black text-sky-700 uppercase tracking-wider">Bước 2: Copy Prompt</h3>
-                  <button 
-                    onClick={handleCopyPrompt}
-                    disabled={!generatedPrompt}
-                    className="px-4 py-1.5 bg-gradient-to-r from-sky-400 to-blue-500 text-white text-[10px] font-black uppercase rounded-lg shadow-md disabled:opacity-50 active:scale-95 transition-all"
-                  >
-                    📋 Copy Prompt
-                  </button>
-                </div>
-                <textarea 
-                  readOnly
-                  value={generatedPrompt}
-                  placeholder="Lệnh Prompt chứa cấu trúc Ma trận JSON sẽ xuất hiện ở đây..."
-                  className="w-full h-40 p-4 bg-slate-800 text-emerald-400 font-mono text-[11px] rounded-xl focus:outline-none shadow-inner resize-none leading-relaxed"
-                />
-              </div>
-
-            </div>
-
-            {/* CỘT PHẢI: DÁN KẾT QUẢ & HIỂN THỊ DUYỆT ĐỀ */}
-            <div className="space-y-6">
-              
-              <div className="bg-white/80 backdrop-blur-md border border-white p-6 rounded-3xl shadow-xl space-y-4">
-                <h3 className="text-xs font-black text-amber-600 uppercase tracking-wider border-b border-amber-100 pb-3">
-                  Bước 3: Dán Kết Quả JSON Từ Trợ Lý (ChatGPT/Gemini)
-                </h3>
-                <textarea 
-                  value={jsonInput}
-                  onChange={(e) => setJsonInput(e.target.value)}
-                  placeholder='Dán mảng JSON [{"type": "MCQ", ...}, {"type": "LA", ...}] AI trả về vào đây...'
-                  className="w-full h-32 p-4 bg-amber-50/50 border border-amber-100 text-slate-700 font-mono text-[11px] rounded-xl focus:outline-none focus:border-amber-400 shadow-inner resize-none leading-relaxed placeholder:text-slate-400"
-                />
-                <button
-                  onClick={handleParseJSON}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold rounded-xl shadow-[0_4px_0_0_#9A3412] active:translate-y-1 active:shadow-[0_0px_0_0_#9A3412] transition-all text-xs uppercase tracking-wider"
-                >
-                  🧩 Dịch Mã JSON & Hiển Thị Đề
-                </button>
-              </div>
-
-              {/* KHU VỰC DUYỆT ĐỀ VÀ LƯU VÀO FIREBASE */}
-              {generatedQuestions.length > 0 && (
-                <div className="bg-white/90 backdrop-blur-xl border-2 border-emerald-100 p-6 rounded-3xl shadow-2xl animate-fadeIn space-y-4">
-                  <h3 className="text-xs font-black text-emerald-600 uppercase tracking-wider border-b border-emerald-100 pb-3 flex justify-between">
-                    <span>Bước 4: Duyệt Đề & Lưu Trữ</span>
-                    <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">{generatedQuestions.length} câu</span>
-                  </h3>
-                  
-                  <div className="max-h-[600px] overflow-y-auto pr-2 space-y-6">
-                    {generatedQuestions.map((q, idx) => (
-                      <div key={idx} className="space-y-4 border-b border-slate-200 pb-6 last:border-0">
-                        
-                        <div className="flex justify-between items-center">
-                          <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase rounded">
-                            Dạng: {q.type} | {q.level}
-                          </span>
-                        </div>
-
-                        <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-inner overflow-x-auto font-medium text-slate-800 text-sm">
-                          {/* Dùng BlockMath nếu AI sinh chuẩn LaTeX, hoặc có thể dùng text thông thường tùy dữ liệu */}
-                          <BlockMath math={q.question || '\\text{Lỗi hiển thị LaTeX}'} />
-                        </div>
-
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-xs font-semibold">
-                          {q.type === 'MCQ' && q.options && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-600">
-                              {Object.entries(q.options).map(([key, value]: any) => (
-                                <p key={key} className={q.correctAnswer === key ? 'text-emerald-600 font-black' : ''}>
-                                  <span className="font-black mr-1">{key}.</span> {value}
-                                </p>
-                              ))}
-                            </div>
-                          )}
-
-                          {q.type === 'TF' && q.statements && (
-                            <div className="space-y-1.5 text-slate-600">
-                              {q.statements.map((st: any, i: number) => (
-                                <p key={i}>
-                                  <span className="font-black text-purple-600 uppercase mr-1">Ý {st.id}):</span> {st.text} ➔ 
-                                  <span className={`ml-1 font-black ${st.correct ? 'text-emerald-600' : 'text-rose-500'}`}>{st.correct ? 'ĐÚNG' : 'SAI'}</span>
-                                </p>
-                              ))}
-                            </div>
-                          )}
-
-                          {q.type === 'SA' && (
-                            <p className="text-slate-600">
-                              🔑 Đáp số: <span className="text-amber-600 font-mono font-black text-sm bg-white px-2 py-0.5 rounded border ml-1">{q.correctAnswer}</span>
-                            </p>
-                          )}
-
-                          {/* Xử lý hiển thị riêng cho câu Tự Luận (LA) */}
-                          {q.type === 'LA' && (
-                            <div className="text-slate-600">
-                              <p className="font-black text-indigo-600 mb-2">🔑 Lời giải chi tiết:</p>
-                              <div className="p-3 bg-white border border-slate-200 rounded whitespace-pre-wrap font-normal leading-relaxed">
-                                {q.correctAnswer}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {q.source && (
-                            <p className="text-emerald-700 italic border-t border-slate-200 mt-3 pt-2 text-[10px]">
-                              📌 Nguồn tham chiếu chuẩn: {q.source}
-                            </p>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={() => handleSaveToBank(q)}
-                          className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-wider rounded-lg shadow-sm hover:scale-[1.01] transition-all flex justify-center items-center gap-2"
-                        >
-                          ✔ Nạp Câu Hỏi Này Vào Ngân Hàng Đề
-                        </button>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wide mb-2">Cấu hình dạng thức:</label>
+                    {['MCQ', 'TF', 'SA', 'LA'].map((t) => (
+                      <div key={t} className="flex items-center gap-3">
+                        <span className="w-20 font-bold text-xs text-slate-700">{t === 'MCQ' ? 'Trắc nghiệm:' : t === 'TF' ? 'Đúng/Sai:' : t === 'SA' ? 'Trả lời ngắn:' : 'Tự luận:'}</span>
+                        <input type="number" min="0" value={(examConfig as any)[t].count} onChange={(e) => updateConfig(t as any, 'count', e.target.value)} className="w-16 p-2 rounded-lg border border-slate-300 text-sm text-center" />
+                        <select value={(examConfig as any)[t].level} onChange={(e) => updateConfig(t as any, 'level', e.target.value)} className="flex-1 p-2 rounded-lg border border-slate-300 text-xs">
+                          <option>Nhận biết</option><option>Thông hiểu</option><option>Vận dụng</option><option>Vận dụng cao</option>
+                        </select>
                       </div>
                     ))}
                   </div>
+                  
+                  <div>
+                    <label className="block text-[10px] font-black text-emerald-600 uppercase tracking-wide mb-1.5">📚 Nguồn dữ liệu (Grounding):</label>
+                    <textarea value={referenceSource} onChange={(e) => setReferenceSource(e.target.value)} placeholder="Dán nội dung sách giáo khoa để AI dựa vào..." className="w-full h-24 p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl text-xs font-medium focus:outline-none resize-none" />
+                  </div>
+                  <button onClick={handleGeneratePrompt} className="w-full py-3 bg-emerald-100 text-emerald-700 font-extrabold rounded-xl hover:bg-emerald-200 text-xs uppercase tracking-wider">⚡ Khởi Tạo Lệnh Prompt</button>
+                </div>
+
+                <div className="bg-white/90 p-6 rounded-3xl shadow-xl space-y-4">
+                  <div className="flex justify-between items-center border-b border-sky-100 pb-3">
+                    <h3 className="text-xs font-black text-sky-700 uppercase tracking-wider">Bước 2: Copy Prompt</h3>
+                    <button onClick={handleCopyPrompt} disabled={!generatedPrompt} className="px-4 py-1.5 bg-gradient-to-r from-sky-400 to-blue-500 text-white text-[10px] font-black uppercase rounded-lg shadow-md disabled:opacity-50">📋 Copy Prompt</button>
+                  </div>
+                  <textarea readOnly value={generatedPrompt} className="w-full h-32 p-4 bg-slate-800 text-emerald-400 font-mono text-[11px] rounded-xl focus:outline-none shadow-inner resize-none" />
+                </div>
+              </div>
+
+              {/* CỘT PHẢI: DỊCH JSON & LƯU TRỮ */}
+              <div className="space-y-6">
+                <div className="bg-white/90 p-6 rounded-3xl shadow-xl space-y-4">
+                  <h3 className="text-xs font-black text-amber-600 uppercase tracking-wider border-b border-amber-100 pb-3">Bước 3: Dịch mã JSON từ AI</h3>
+                  <textarea value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} placeholder='Dán mảng JSON AI trả về vào đây...' className="w-full h-32 p-4 bg-amber-50 border border-amber-100 font-mono text-[11px] rounded-xl focus:outline-none resize-none" />
+                  <button onClick={handleParseJSON} className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold rounded-xl text-xs uppercase shadow-[0_4px_0_0_#9A3412] active:translate-y-1 active:shadow-none transition-all">🧩 Hiển Thị Đề</button>
+                </div>
+
+                {generatedQuestions.length > 0 && (
+                  <div className="bg-white/95 p-6 rounded-3xl shadow-2xl space-y-4 border-2 border-emerald-400">
+                    <div className="flex justify-between items-center border-b border-emerald-100 pb-3">
+                      <h3 className="text-xs font-black text-emerald-600 uppercase tracking-wider">
+                        Bước 4: Duyệt Đề ({generatedQuestions.length} câu)
+                      </h3>
+                      {/* NÚT LƯU ĐỒNG LOẠT Ở ĐÂY */}
+                      <button onClick={handleSaveAllToBank} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md hover:bg-emerald-700 transition-colors">
+                        💾 LƯU TẤT CẢ VÀO KHO
+                      </button>
+                    </div>
+                    
+                    <div className="max-h-[500px] overflow-y-auto pr-2 space-y-6">
+                      {generatedQuestions.map((q, idx) => (
+                        <div key={idx} className="space-y-4 border-b border-slate-200 pb-6 last:border-0 relative">
+                          <span className="absolute top-0 right-0 bg-indigo-100 text-indigo-700 px-2 py-0.5 text-[10px] font-black rounded">{q.type}</span>
+                          <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-inner text-sm font-medium">
+                            <BlockMath math={q.question || '\\text{Lỗi LaTeX}'} />
+                          </div>
+                          {/* (Giao diện hiển thị chi tiết đáp án ẩn bớt để tối ưu code, logic vẫn giữ nguyên) */}
+                          <div className="bg-slate-50 p-3 rounded-lg text-xs">
+                            <p className="font-bold text-slate-500 mb-1">Cấp độ: {q.level}</p>
+                            <button onClick={() => handleSaveSingleToBank(q)} className="w-full mt-2 py-2 border-2 border-emerald-500 text-emerald-600 font-bold rounded hover:bg-emerald-50 text-xs">✔ Lưu Câu Này</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ======================= HIỂN THỊ TAB 2 (QUẢN LÝ KHO & GIAO ĐỀ) ======================= */}
+          {activeTab === 'manage' && (
+            <div className="bg-white/90 backdrop-blur-md p-6 md:p-8 rounded-3xl shadow-xl border border-slate-100 animate-fadeIn min-h-[600px] flex flex-col">
+              
+              <div className="flex justify-between items-end border-b border-slate-200 pb-4 mb-6">
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-800">Kho Dữ Liệu Ngân Hàng</h2>
+                  <p className="text-sm text-slate-500 font-medium mt-1">Đang lưu trữ {bankQuestions.length} câu hỏi hệ thống.</p>
+                </div>
+                
+                {/* NÚT XUẤT ĐỀ THI GIAO CHO HỌC SINH */}
+                <button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-black text-sm shadow-md hover:scale-105 transition-transform flex items-center gap-2">
+                  <span>🚀</span> XUẤT ĐỀ VÀ GIAO CHO HỌC SINH
+                </button>
+              </div>
+
+              {isFetchingBank ? (
+                <div className="flex-1 flex justify-center items-center">
+                  <p className="text-slate-500 font-bold animate-pulse">Đang tải dữ liệu từ máy chủ...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto">
+                  {bankQuestions.map((q, idx) => (
+                    <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-xl hover:shadow-md transition-shadow relative group">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className={`px-2 py-0.5 text-[10px] font-black rounded uppercase ${q.type === 'MCQ' ? 'bg-blue-100 text-blue-700' : q.type === 'TF' ? 'bg-amber-100 text-amber-700' : q.type === 'SA' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
+                          {q.type}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">{q.level}</span>
+                      </div>
+                      
+                      {/* Hiển thị tóm tắt LaTeX (Có thể bị cắt ngang nếu quá dài) */}
+                      <div className="text-xs overflow-hidden max-h-24">
+                         <BlockMath math={q.question || ''} />
+                      </div>
+
+                      {/* Nút check chọn vào đề thi */}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <input type="checkbox" className="w-5 h-5 accent-indigo-600 cursor-pointer" />
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {bankQuestions.length === 0 && (
+                    <div className="col-span-full py-12 text-center text-slate-400 font-medium">
+                      Chưa có câu hỏi nào trong kho. Thầy hãy tạo ở Tab Biên Soạn nhé.
+                    </div>
+                  )}
                 </div>
               )}
 
             </div>
-          </div>
+          )}
 
         </div>
       </main>
