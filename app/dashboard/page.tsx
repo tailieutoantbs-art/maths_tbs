@@ -99,7 +99,8 @@ export default function UnifiedDashboard() {
                  🏆 HOẠT ĐỘNG ĐẶC THÙ
                </h3>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Link href="/games" className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1 group border-l-4 border-l-cyan-500 flex items-center gap-6">
+                  {/* LINK CỦA GIÁO VIÊN TRỎ VỀ /games/setup */}
+                  <Link href="/games/setup" className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all hover:-translate-y-1 group border-l-4 border-l-cyan-500 flex items-center gap-6">
                     <div className="text-5xl">🎮</div>
                     <div>
                       <h4 className="font-bold text-gray-800 text-lg mb-1">CLB VUI HỌC TOÁN - TBS</h4>
@@ -137,6 +138,7 @@ export default function UnifiedDashboard() {
 
             {/* NHÓM 1: ĐẤU TRƯỜNG & GAME (Nổi bật nhất) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* LINK CỦA HỌC SINH VẪN TRỎ VỀ /games */}
               <Link href="/games" className="group block bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl p-6 text-white shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden">
                 <div className="relative z-10">
                   <div className="flex justify-between items-center mb-4">
