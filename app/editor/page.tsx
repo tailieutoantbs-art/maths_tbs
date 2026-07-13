@@ -1,240 +1,173 @@
-'use client';
+"use client";
+import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
-import AuthGuard from '@/components/AuthGuard';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import 'react-quill-new/dist/quill.snow.css';
+export default function EditorWithAIPage() {
+  const [editorContent, setEditorContent] = useState('Dưới đây là một ví dụ về công thức Toán LaTeX:\n\nPhương trình bậc hai có dạng: $ax^2 + bx + c = 0$\n\nCông thức nghiệm:\n$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('preview');
 
-const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false }) as any;
-
-function LectureCreatorPage() {
-  const router = useRouter();
-  const quillRef = useRef<any>(null);
-
-  const [loadingDraft, setLoadingDraft] = useState(false);
-  const [loadingPublish, setLoadingPublish] = useState(false);
-
-  const [title, setTitle] = useState('');
-  const [chapter, setChapter] = useState('Chương 1: Mệnh đề - Tập hợp');
-  const [level, setLevel] = useState('medium');
-  const [tags, setTags] = useState('');
-  const [content, setContent] = useState('');
-
-  // ==========================================
-  // LUỒNG TẢI ẢNH LÊN CLOUDINARY
-  // ==========================================
-  const imageHandler = useCallback(() => {
-    const input = document.createElement('input');
-    input.setAttribute('type', 'file');
-    input.setAttribute('accept', 'image/*');
-    input.click();
-
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (file) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', 'cosodulieuhungtbs'); 
-
-        try {
-          const cloudName = 'dlqjlzekw'; 
-          const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/outo/upload`, {
-            method: 'POST',
-            body: formData,
-          });
-          
-          const data = await response.json();
-          if (data.secure_url) {
-            const quill = quillRef.current?.getEditor();
-            if (quill) {
-              const range = quill.getSelection(true);
-              quill.insertEmbed(range.index, 'image', data.secure_url);
-            }
-          }
-        } catch (error) {
-          console.error('Lỗi tải ảnh:', error);
-          alert('Không thể tải ảnh lên kho Cloudinary! Thầy kiểm tra lại kết nối mạng nhé.');
-        }
-      }
-    };
-  }, []);
-
-  const modules = useMemo(() => ({
-    toolbar: {
-      container: [
-        [{ 'header': [1, 2, 3, 4, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'script': 'sub'}, { 'script': 'super' }],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        [{ 'align': [] }],
-        ['blockquote', 'code-block'],
-        ['link', 'image', 'video', 'formula'],
-        ['clean']
-      ],
-      handlers: {
-        image: imageHandler
-      }
-    }
-  }), [imageHandler]);
-
-  // ==========================================
-  // LUỒNG LƯU BÀI MỚI LÊN FIREBASE
-  // ==========================================
-  const handleSaveToFirebase = async (status: 'draft' | 'published') => {
-    if (!title) {
-      alert("Thầy vui lòng nhập tiêu đề bài giảng!");
-      return;
-    }
-
-    if (status === 'draft') setLoadingDraft(true);
-    else setLoadingPublish(true);
-
+  // Hàm gọi API đã được nối chính xác vào thư mục /api/editor-ai
+  const handleGenerateAI = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsGenerating(true);
+    setAiResponse(""); // Xóa nội dung cũ trước khi nhận câu trả lời mới
+    
     try {
-      await addDoc(collection(db, 'lectures'), {
-        title,
-        chapter,
-        level,
-        tags: tags.split(',').map(tag => tag.trim()),
-        content,
-        status: status,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      const response = await fetch('/api/editor-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: aiPrompt }),
       });
-      
-      alert(status === 'draft' ? 'Đã lưu bản nháp thành công!' : '🎉 Đã đăng công khai bài giảng!');
-      router.push('/department/lectures');
+
+      if (!response.ok) {
+        throw new Error("Lỗi phản hồi từ máy chủ");
+      }
+
+      const data = await response.json();
+      setAiResponse(data.text);
     } catch (error) {
-      console.error("Lỗi lưu bài giảng:", error);
-      alert('Có lỗi xảy ra khi đồng bộ lên Firebase.');
+      console.error("Lỗi gọi AI:", error);
+      setAiResponse("⚠️ Lỗi: Không thể kết nối với Trợ lý AI. Thầy vui lòng kiểm tra lại đường truyền hoặc cấu hình API Key.");
     } finally {
-      setLoadingDraft(false);
-      setLoadingPublish(false);
+      setIsGenerating(false);
     }
   };
 
-  return (
-    <main className="min-h-screen bg-[#E0F2FE] p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* HEADER XANH DƯƠNG CHUẨN UX */}
-        <div className="bg-white/60 backdrop-blur-xl border border-white/80 p-6 rounded-3xl shadow-lg flex flex-col md:flex-row justify-between items-center gap-4 relative overflow-hidden">
-          <div className="absolute -top-10 -left-10 w-32 h-32 bg-sky-200/50 rounded-full blur-3xl -z-10"></div>
-          
-          <div>
-            <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#0284C7] to-[#38BDF8] uppercase tracking-wide">
-              Trạm Soạn Thảo Bài Giảng
-            </h1>
-            <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">
-              Tạo học liệu số Tổ Toán TBS
-            </p>
-          </div>
+  const handleSelectAppendix = (type: string) => {
+    if (type === 'phuluc1') setAiPrompt("Dựa vào Phụ lục 1, hãy lập Kế hoạch bài dạy (Giáo án) cho bài: [Tên bài Toán]. Yêu cầu: Phân bổ thời gian 45 phút, rành mạch 4 hoạt động (Khởi động, Hình thành kiến thức, Luyện tập, Vận dụng).");
+    else if (type === 'phuluc2') setAiPrompt("Dựa vào Phụ lục 2, hãy xây dựng Phân phối chương trình chi tiết cho chuyên đề: [Tên chuyên đề]. Yêu cầu bám sát chuẩn kiến thức kỹ năng.");
+    else if (type === 'phuluc3') setAiPrompt("Dựa vào Phụ lục 3, hãy sinh một đề kiểm tra 15 phút phần [Chủ đề]. Yêu cầu: 10 câu trắc nghiệm khách quan, có đáp án và lời giải chi tiết theo định dạng LaTeX.");
+  };
 
-          <div className="flex gap-3 z-10">
-            <button 
-              onClick={() => router.back()}
-              className="px-5 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all text-xs uppercase"
-            >
-              Hủy bỏ
-            </button>
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+      
+      {/* --- HEADER --- */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm z-10">
+        <div>
+          <h1 className="text-xl font-extrabold text-indigo-700">BIÊN SOẠN TÀI LIỆU TOÁN HỌC - TBS</h1>
+          <p className="text-sm text-gray-500 font-medium">Tích hợp Trợ lý AI & Hỗ trợ chuẩn LaTeX</p>
+        </div>
+        <div className="flex gap-3">
+          <button className="px-4 py-2 bg-blue-50 text-blue-600 font-bold rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors">📄 Xuất Word</button>
+          <button className="px-4 py-2 bg-emerald-50 text-emerald-600 font-bold rounded-lg border border-emerald-200 hover:bg-emerald-100 transition-colors">📜 Xuất LaTeX</button>
+        </div>
+      </header>
+
+      {/* --- MAIN WORKSPACE --- */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* CỘT TRÁI: KHUNG SOẠN THẢO & XEM TRƯỚC */}
+        <div className="w-2/3 p-6 overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
             
-            <button 
-              onClick={() => handleSaveToFirebase('draft')}
-              disabled={loadingDraft || loadingPublish}
-              className="px-6 py-2.5 bg-gradient-to-r from-[#0284C7] to-[#38BDF8] text-white font-extrabold rounded-xl shadow-[0_4px_0_0_#0369A1] active:translate-y-1 active:shadow-[0_0px_0_0_#0369A1] transition-all text-xs uppercase tracking-wider disabled:opacity-60"
-            >
-              {loadingDraft ? 'Đang lưu nháp...' : '💾 Lưu Bản Nháp'}
-            </button>
+            {/* Thanh điều khiển Tab */}
+            <div className="bg-gray-100 px-4 pt-3 border-b border-gray-200 flex gap-2">
+              <button 
+                onClick={() => setActiveTab('edit')}
+                className={`px-4 py-2 rounded-t-lg font-bold transition-colors ${activeTab === 'edit' ? 'bg-white text-indigo-600 border-t-2 border-indigo-600' : 'text-gray-500 hover:bg-gray-200'}`}
+              >
+                ✍️ Mã Nguồn (Soạn Thảo)
+              </button>
+              <button 
+                onClick={() => setActiveTab('preview')}
+                className={`px-4 py-2 rounded-t-lg font-bold transition-colors ${activeTab === 'preview' ? 'bg-white text-emerald-600 border-t-2 border-emerald-600' : 'text-gray-500 hover:bg-gray-200'}`}
+              >
+                👁️ Xem Trước (Kết Quả Toán)
+              </button>
+            </div>
             
-            <button 
-              onClick={() => handleSaveToFirebase('published')}
-              disabled={loadingDraft || loadingPublish}
-              className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-extrabold rounded-xl shadow-[0_4px_0_0_#047857] active:translate-y-1 active:shadow-[0_0px_0_0_#047857] transition-all text-xs uppercase tracking-wider disabled:opacity-60"
-            >
-              {loadingPublish ? 'Đang phát hành...' : '🚀 Đăng Công Khai'}
-            </button>
+            {/* Vùng hiển thị nội dung theo Tab */}
+            <div className="flex-1 overflow-y-auto relative">
+              {activeTab === 'edit' ? (
+                <textarea
+                  className="absolute inset-0 w-full h-full p-6 resize-none focus:outline-none text-gray-800 leading-relaxed font-mono text-sm bg-gray-50"
+                  placeholder="Nhập nội dung văn bản và công thức LaTeX (ví dụ: $\int x dx$)..."
+                  value={editorContent}
+                  onChange={(e) => setEditorContent(e.target.value)}
+                />
+              ) : (
+                <div className="p-8 prose max-w-none text-gray-800">
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkMath]} 
+                    rehypePlugins={[rehypeKatex]}
+                  >
+                    {editorContent}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* KHUNG SOẠN THẢO TEXT EDITOR */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-3 bg-white/80 backdrop-blur-md border border-white p-2 rounded-3xl shadow-xl overflow-hidden min-h-[600px] flex flex-col">
-            {/* @ts-ignore */}
-            <ReactQuill 
-              ref={quillRef}
-              theme="snow" 
-              value={content} 
-              onChange={setContent} 
-              modules={modules}
-              className="flex-grow bg-white rounded-2xl border-none"
-              placeholder="Thầy bắt đầu soạn nội dung bài giảng mới tại đây..."
-            />
+        {/* CỘT PHẢI: TRỢ LÝ AI TÍCH HỢP */}
+        <div className="w-1/3 bg-white border-l border-gray-200 flex flex-col shadow-[[-4px_0_15px_rgba(0,0,0,0.03)]] z-10">
+          <div className="p-4 border-b border-gray-100 bg-indigo-50/50 flex items-center gap-2">
+            <span className="text-2xl">🤖</span>
+            <h2 className="font-bold text-indigo-800 text-lg">Trợ Lý AI TBS</h2>
           </div>
 
-          {/* HỘP NHẬP METADATA CỦA BÀI */}
-          <div className="bg-white/60 backdrop-blur-xl border border-white/80 p-6 rounded-3xl shadow-lg space-y-5 h-fit">
-            <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider border-b border-sky-100 pb-3 mb-4">
-              Metadata Bài Giảng
-            </h3>
-
-            <div>
-              <label className="block text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5">Tiêu đề chính:</label>
-              <input 
-                type="text" 
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full p-3 bg-white/80 border border-sky-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-200 text-sm font-bold text-slate-700 shadow-inner"
-                placeholder="VD: Xác suất có điều kiện"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5">Thuộc Chương:</label>
-              <select 
-                value={chapter}
-                onChange={(e) => setChapter(e.target.value)}
-                className="w-full p-3 bg-white/80 border border-sky-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-200 text-sm font-bold text-slate-700 shadow-inner"
-              >
-                <option>Chương 1: Mệnh đề - Tập hợp</option>
-                <option>Chương 2: Bất phương trình</option>
-                <option>Chương 3: Hàm số bậc hai</option>
-                <option>Hệ thống Ôn tập Đại số</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5">Mức độ phân hóa:</label>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setLevel('easy')} className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${level === 'easy' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-white text-slate-400 border-slate-200'}`}>Cơ Bản</button>
-                <button type="button" onClick={() => setLevel('medium')} className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${level === 'medium' ? 'bg-sky-100 text-[#0284C7] border-sky-300' : 'bg-white text-slate-400 border-slate-200'}`}>Vận Dụng</button>
-                <button type="button" onClick={() => setLevel('hard')} className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${level === 'hard' ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-white text-slate-400 border-slate-200'}`}>Nâng Cao</button>
+          <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
+            {aiResponse ? (
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-indigo-100 text-sm text-gray-700 relative group">
+                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  {aiResponse}
+                </ReactMarkdown>
+                <button 
+                  onClick={() => {
+                    setEditorContent(prev => prev + '\n\n' + aiResponse);
+                    setActiveTab('preview');
+                  }}
+                  className="absolute top-2 right-2 bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                >
+                  📋 Chèn vào bài
+                </button>
               </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-3 opacity-60">
+                <span className="text-5xl">✨</span>
+                <p className="text-sm text-center px-4">Hãy gọi AI để tạo giáo án, lập ma trận đề thi hoặc giải bài tập.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 bg-white border-t border-gray-100 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => handleSelectAppendix('phuluc1')} className="text-[11px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-indigo-100 hover:text-indigo-700 transition-colors">+ PL1: Giáo án</button>
+              <button onClick={() => handleSelectAppendix('phuluc2')} className="text-[11px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-indigo-100 hover:text-indigo-700 transition-colors">+ PL2: Kế hoạch</button>
+              <button onClick={() => handleSelectAppendix('phuluc3')} className="text-[11px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-indigo-100 hover:text-indigo-700 transition-colors">+ PL3: Đề thi</button>
             </div>
 
-            <div>
-              <label className="block text-xs font-black text-slate-500 uppercase tracking-wide mb-1.5">Tags (Cách nhau dấu phẩy):</label>
-              <input 
-                type="text" 
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                className="w-full p-3 bg-white/80 border border-sky-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-200 text-sm font-bold text-[#0284C7] shadow-inner"
-                placeholder="#xacsuat, #oly"
+            <div className="relative">
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="Nhập yêu cầu (Hỗ trợ sinh mã LaTeX Toán học)..."
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 pr-12 text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all"
+                rows={4}
               />
+              <button 
+                onClick={handleGenerateAI}
+                disabled={isGenerating || !aiPrompt.trim()}
+                className={`absolute bottom-3 right-3 p-2 rounded-lg flex items-center justify-center transition-all ${isGenerating || !aiPrompt.trim() ? 'bg-gray-200 text-gray-400' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md'}`}
+              >
+                {isGenerating ? (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                )}
+              </button>
             </div>
           </div>
+
         </div>
       </div>
-    </main>
-  );
-}
-
-export default function ProtectedLectureEditor() {
-  return (
-    <AuthGuard>
-      <LectureCreatorPage />
-    </AuthGuard>
+    </div>
   );
 }

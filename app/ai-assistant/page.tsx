@@ -3,337 +3,197 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/components/ToastProvider';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { BlockMath } from 'react-katex';
 
 export default function AIAssistantPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
   const [topic, setTopic] = useState('');
-  const [type, setType] = useState<'MCQ' | 'TF' | 'SA'>('MCQ');
-  const [level, setLevel] = useState('Thông hiểu');
-  
-  // State mới để lưu Nguồn dữ liệu
-  const [referenceSource, setReferenceSource] = useState('');
-  
-  const [generatedPrompt, setGeneratedPrompt] = useState('');
-  const [jsonInput, setJsonInput] = useState('');
-  const [generatedQuestions, setGeneratedQuestions] = useState<any[]>([]);
+  const [grade, setGrade] = useState('Lớp 12');
+  const [digitalTool, setDigitalTool] = useState('GeoGebra');
+  const [aiResponse, setAiResponse] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const handleGeneratePrompt = () => {
+  const handleGenerateLessonPlan = async () => {
     if (!topic.trim()) {
-      showToast('warning', 'Thầy vui lòng nhập chủ đề kiến thức trước nhé!');
+      showToast('warning', 'Thầy vui lòng nhập tên bài học / chủ đề nhé!');
       return;
     }
 
-    let jsonTemplate = '';
-    if (type === 'MCQ') {
-      jsonTemplate = `[
-  {
-    "type": "MCQ",
-    "question": "Nội dung câu hỏi chứa LaTeX",
-    "level": "${level}",
-    "options": { "A": "Đáp án A", "B": "Đáp án B", "C": "Đáp án C", "D": "Đáp án D" },
-    "correctAnswer": "A",
-    "source": "Trích dẫn nguồn ngắn gọn"
-  }
-]`;
-    } else if (type === 'TF') {
-      jsonTemplate = `[
-  {
-    "type": "TF",
-    "question": "Nội dung câu hỏi gốc chứa LaTeX",
-    "level": "${level}",
-    "statements": [
-      { "id": "a", "text": "Phát biểu a", "correct": true },
-      { "id": "b", "text": "Phát biểu b", "correct": false },
-      { "id": "c", "text": "Phát biểu c", "correct": true },
-      { "id": "d", "text": "Phát biểu d", "correct": false }
-    ],
-    "source": "Trích dẫn nguồn ngắn gọn"
-  }
-]`;
-    } else {
-      jsonTemplate = `[
-  {
-    "type": "SA",
-    "question": "Nội dung câu hỏi điền đáp số chứa LaTeX",
-    "level": "${level}",
-    "correctAnswer": "Giá trị số hoặc phân số",
-    "source": "Trích dẫn nguồn ngắn gọn"
-  }
-]`;
-    }
+    setIsGenerating(true);
+    setAiResponse('');
+    showToast('info', 'AI đang phân tích và thiết kế giáo án. Thầy đợi chút nhé...');
 
-    // Tích hợp lệnh Neo dữ liệu (Grounding) cực kỳ khắt khe
-    const promptText = `Bạn là một chuyên gia biên soạn đề thi môn Toán cấp trung học phổ thông.
-Hãy tạo ra 1 câu hỏi toán học về chủ đề "${topic}", mức độ "${level}", định dạng "${type === 'MCQ' ? 'Trắc nghiệm 4 lựa chọn' : type === 'TF' ? 'Trắc nghiệm Đúng/Sai' : 'Trả lời ngắn / Điền số'}".
-
-==================================================
-NGUỒN DỮ LIỆU THAM CHIẾU CHUẨN (GROUNDING SOURCE):
-${referenceSource.trim() ? referenceSource : 'Không có nguồn cụ thể được cung cấp. Hãy sử dụng kiến thức chuẩn của Chương trình GDPT 2018 môn Toán.'}
-==================================================
-
-YÊU CẦU BẮT BUỘC VÀ KIỂM SOÁT TÍNH ĐÚNG ĐẮN:
-1. TUYỆT ĐỐI chỉ sử dụng kiến thức, số liệu, và thuật ngữ từ "NGUỒN DỮ LIỆU THAM CHIẾU CHUẨN" bên trên để thiết kế câu hỏi. KHÔNG TỰ BỊA ĐẶT KIẾN THỨC.
-2. Tất cả công thức toán học PHẢI được viết bằng mã LaTeX tiêu chuẩn (Ví dụ: \\int_{0}^{1} x dx hoặc \\vec{a} = (x; y; z)). 
-3. Tuyệt đối KHÔNG dùng ký hiệu $ đơn hay $$ để bọc công thức.
-4. Ghi chú nguồn gốc dữ liệu vào trường "source" trong mảng JSON.
-5. Chỉ trả về duy nhất một mảng JSON thuần túy theo đúng cấu trúc dưới đây, không kèm theo bất kỳ văn bản giải thích hay ký hiệu markdown \`\`\`json nào ở đầu và cuối:
-
-${jsonTemplate}`;
-
-    setGeneratedPrompt(promptText);
-    showToast('success', 'Đã tạo Prompt khống chế nguồn thành công!');
-  };
-
-  const handleCopyPrompt = () => {
-    if (!generatedPrompt) return;
-    navigator.clipboard.writeText(generatedPrompt);
-    showToast('info', 'Đã sao chép Prompt vào khay nhớ tạm!');
-  };
-
-  const handleParseJSON = () => {
-    if (!jsonInput.trim()) {
-      showToast('warning', 'Thầy chưa dán kết quả JSON từ AI trả về!');
-      return;
-    }
+    // Lệnh Prompt chuyên biệt ép AI viết giáo án tích hợp năng lực số
+    const promptText = `Bạn là một chuyên gia phương pháp giảng dạy Toán học tại Việt Nam.
+Hãy thiết kế một Kế hoạch bài dạy (Giáo án) chi tiết cho bài học: "${topic}" dành cho học sinh ${grade}.
+YÊU CẦU BẮT BUỘC:
+1. Cấu trúc giáo án rành mạch theo 4 hoạt động: Khởi động, Hình thành kiến thức mới, Luyện tập, Vận dụng.
+2. TÍCH HỢP NĂNG LỰC SỐ: Phải có ít nhất 1 hoạt động ứng dụng phần mềm/công cụ [${digitalTool}] để minh họa hoặc cho học sinh thực hành. Nêu rõ thao tác giáo viên/học sinh cần làm với công cụ này.
+3. Tất cả công thức Toán học phải bọc trong thẻ LaTeX tiêu chuẩn (dùng dấu $ hoặc $$).
+4. Trình bày bằng văn bản Markdown rõ ràng, dễ đọc.`;
 
     try {
-      const cleanedInput = jsonInput.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsedData = JSON.parse(cleanedInput);
-      
-      if (Array.isArray(parsedData)) {
-        setGeneratedQuestions(parsedData);
-        showToast('success', 'Phân tích dữ liệu JSON thành công! Mời thầy duyệt mã LaTeX.');
-      } else {
-        setGeneratedQuestions([parsedData]);
-        showToast('success', 'Phân tích dữ liệu JSON thành công!');
-      }
-      setJsonInput(''); 
-    } catch (error) {
-      showToast('error', 'Lỗi cú pháp JSON. Thầy kiểm tra lại dữ liệu copy từ AI nhé!');
-      console.error(error);
-    }
-  };
-
-  const handleSaveToBank = async (q: any) => {
-    try {
-      await addDoc(collection(db, 'cauhoi_nganhang'), {
-        ...q,
-        createdAt: serverTimestamp()
+      // Gọi API mà chúng ta đã tạo chuyên cho việc viết văn bản (Markdown/LaTeX)
+      const response = await fetch('/api/editor-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptText }),
       });
-      showToast('success', 'Đã lưu câu hỏi vào ngân hàng đề thi TBS!');
-      setGeneratedQuestions([]); 
+
+      if (!response.ok) throw new Error('Lỗi phản hồi từ máy chủ');
+
+      const data = await response.json();
+      setAiResponse(data.text);
+      showToast('success', 'Đã thiết kế xong giáo án!');
     } catch (error) {
-      showToast('error', 'Lưu trữ câu hỏi thất bại.');
+      console.error("Lỗi AI:", error);
+      showToast('error', 'Quá trình tạo giáo án gặp lỗi. Thầy kiểm tra lại API Key nhé.');
+    } finally {
+      setIsGenerating(false);
     }
+  };
+
+  const handleCopyContent = () => {
+    if (!aiResponse) return;
+    navigator.clipboard.writeText(aiResponse);
+    showToast('success', 'Đã copy giáo án vào khay nhớ tạm! Thầy có thể dán sang Word hoặc Trình Biên Soạn.');
   };
 
   return (
     <AuthGuard>
-      <main className="min-h-screen bg-[#E0F2FE] p-4 md:p-8 text-slate-700">
+      <main className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-700 font-sans">
         <div className="max-w-6xl mx-auto space-y-6">
           
-          <div className="bg-white/60 backdrop-blur-xl border border-white/80 p-6 rounded-3xl shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
+          {/* HEADER */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
-              <span className="px-3 py-1 bg-purple-100 text-purple-700 text-[10px] font-black rounded-full uppercase tracking-widest">
-                Trạm điều khiển AI (Kiểm soát Nguồn)
+              <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full uppercase tracking-wider">
+                Trợ lý AI TBS
               </span>
-              <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 uppercase tracking-wide mt-2">
-                Bộ Tạo Prompt Soạn Đề
+              <h1 className="text-2xl font-extrabold text-gray-800 uppercase tracking-wide mt-2">
+                Soạn Giáo Án Năng Lực Số
               </h1>
-              <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">
-                Kiểm soát hoàn toàn cấu trúc JSON và ngăn chặn Hallucination
+              <p className="text-sm font-medium text-gray-500 mt-1">
+                Tích hợp công nghệ (GeoGebra, Desmos, Quizizz...) vào tiến trình dạy học.
               </p>
             </div>
             <button 
               onClick={() => router.push('/dashboard')}
-              className="px-5 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all text-xs uppercase shadow-sm"
+              className="px-5 py-2.5 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-all text-sm uppercase shadow-sm"
             >
               ⬅ Về Dashboard
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <div className="space-y-6">
-              
-              <div className="bg-white/80 backdrop-blur-md border border-white p-6 rounded-3xl shadow-xl space-y-4">
-                <h3 className="text-xs font-black text-purple-700 uppercase tracking-wider border-b border-purple-100 pb-3">
-                  Bước 1: Thiết lập & Neo dữ liệu
+            {/* CỘT TRÁI: FORM CẤU HÌNH */}
+            <div className="lg:col-span-1 space-y-6">
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 space-y-5">
+                <h3 className="text-sm font-black text-purple-700 uppercase tracking-wider border-b border-purple-100 pb-3">
+                  Thông số bài giảng
                 </h3>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1.5">Chủ đề / Yêu cầu chi tiết:</label>
-                    <input 
-                      type="text" 
-                      value={topic}
-                      onChange={(e) => setTopic(e.target.value)}
-                      placeholder="VD: Viết một câu hỏi trắc nghiệm về Xác suất thực nghiệm..."
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 text-sm font-bold shadow-inner"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1.5">Dạng thức:</label>
-                    <select 
-                      value={type}
-                      onChange={(e) => setType(e.target.value as any)}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold shadow-inner focus:outline-none"
-                    >
-                      <option value="MCQ">MCQ (4 Lựa chọn)</option>
-                      <option value="TF">TF (Đúng/Sai)</option>
-                      <option value="SA">SA (Điền đáp số)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1.5">Mức độ:</label>
-                    <select 
-                      value={level}
-                      onChange={(e) => setLevel(e.target.value)}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold shadow-inner focus:outline-none"
-                    >
-                      <option value="Nhận biết">Nhận biết</option>
-                      <option value="Thông hiểu">Thông hiểu</option>
-                      <option value="Vận dụng">Vận dụng</option>
-                      <option value="Vận dụng cao">Vận dụng cao</option>
-                    </select>
-                  </div>
-                  
-                  {/* Ô NHẬP NGUỒN DỮ LIỆU ĐỐI CHIẾU MỚI */}
-                  <div className="sm:col-span-2">
-                    <label className="block text-[10px] font-black text-emerald-600 uppercase tracking-wide mb-1.5">
-                      📚 Nguồn dữ liệu chuẩn (NotebookLM, SGK):
-                    </label>
-                    <textarea 
-                      value={referenceSource}
-                      onChange={(e) => setReferenceSource(e.target.value)}
-                      placeholder="Dán tóm tắt kiến thức, ví dụ từ sách giáo khoa hay NotebookLM để ép AI chỉ được ra đề trong phạm vi này..."
-                      className="w-full h-24 p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl text-xs font-medium focus:outline-none resize-none focus:ring-2 focus:ring-emerald-300 placeholder:text-emerald-400/70"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tên bài học / Chủ đề:</label>
+                  <input 
+                    type="text" 
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="VD: Thể tích khối đa diện..."
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 text-sm font-bold transition-all"
+                  />
                 </div>
 
-                <button
-                  onClick={handleGeneratePrompt}
-                  className="w-full py-3 bg-purple-100 text-purple-700 font-extrabold rounded-xl hover:bg-purple-200 transition-all text-xs uppercase tracking-wider"
-                >
-                  ⚡ Khởi Tạo Lệnh Prompt (Bám sát Nguồn)
-                </button>
-              </div>
-
-              <div className="bg-white/80 backdrop-blur-md border border-white p-6 rounded-3xl shadow-xl space-y-4 transition-all">
-                <div className="flex justify-between items-center border-b border-sky-100 pb-3">
-                  <h3 className="text-xs font-black text-[#0284C7] uppercase tracking-wider">Bước 2: Copy Prompt</h3>
-                  <button 
-                    onClick={handleCopyPrompt}
-                    disabled={!generatedPrompt}
-                    className="px-4 py-1.5 bg-gradient-to-r from-sky-400 to-blue-500 text-white text-[10px] font-black uppercase rounded-lg shadow-md disabled:opacity-50 active:scale-95 transition-all"
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Đối tượng học sinh:</label>
+                  <select 
+                    value={grade}
+                    onChange={(e) => setGrade(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-200"
                   >
-                    📋 Copy Prompt
-                  </button>
+                    <option value="Lớp 10">Lớp 10 (Chương trình 2018)</option>
+                    <option value="Lớp 11">Lớp 11 (Chương trình 2018)</option>
+                    <option value="Lớp 12">Lớp 12 (Chương trình 2018)</option>
+                    <option value="Đội tuyển HSG">Đội tuyển HSG</option>
+                  </select>
                 </div>
-                <textarea 
-                  readOnly
-                  value={generatedPrompt}
-                  placeholder="Lệnh Prompt sẽ xuất hiện ở đây..."
-                  className="w-full h-40 p-4 bg-slate-800 text-emerald-400 font-mono text-xs rounded-xl focus:outline-none shadow-inner resize-none leading-relaxed"
-                />
-              </div>
 
-            </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Công cụ số tích hợp:</label>
+                  <select 
+                    value={digitalTool}
+                    onChange={(e) => setDigitalTool(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-200"
+                  >
+                    <option value="GeoGebra">GeoGebra (Mô phỏng 2D/3D)</option>
+                    <option value="Desmos">Desmos (Đồ thị hàm số)</option>
+                    <option value="Quizizz / Kahoot">Quizizz / Kahoot (Trắc nghiệm tương tác)</option>
+                    <option value="Padlet / Azota">Padlet / Azota (Thu thập phản hồi)</option>
+                  </select>
+                </div>
 
-            <div className="space-y-6">
-              
-              <div className="bg-white/80 backdrop-blur-md border border-white p-6 rounded-3xl shadow-xl space-y-4">
-                <h3 className="text-xs font-black text-amber-600 uppercase tracking-wider border-b border-amber-100 pb-3">
-                  Bước 3: Dán Kết Quả JSON Từ Trợ Lý (ChatGPT/Gemini)
-                </h3>
-                <textarea 
-                  value={jsonInput}
-                  onChange={(e) => setJsonInput(e.target.value)}
-                  placeholder='Dán đoạn mã [{"type": "MCQ", ...}] AI trả về vào đây...'
-                  className="w-full h-32 p-4 bg-amber-50/50 border border-amber-100 text-slate-700 font-mono text-xs rounded-xl focus:outline-none focus:border-amber-400 shadow-inner resize-none leading-relaxed placeholder:text-slate-400"
-                />
                 <button
-                  onClick={handleParseJSON}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-extrabold rounded-xl shadow-[0_4px_0_0_#9A3412] active:translate-y-1 active:shadow-[0_0px_0_0_#9A3412] transition-all text-xs uppercase tracking-wider"
+                  onClick={handleGenerateLessonPlan}
+                  disabled={isGenerating}
+                  className={`w-full py-3.5 font-black rounded-xl transition-all text-sm uppercase tracking-wider shadow-sm flex justify-center items-center gap-2 ${isGenerating ? 'bg-gray-200 text-gray-400' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
                 >
-                  🧩 Dịch Mã JSON & Hiển Thị
+                  {isGenerating ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      Đang xử lý...
+                    </>
+                  ) : (
+                    '🚀 Tạo Giáo Án'
+                  )}
                 </button>
               </div>
-
-              {generatedQuestions.length > 0 && (
-                <div className="bg-white/90 backdrop-blur-xl border-2 border-emerald-100 p-6 rounded-3xl shadow-2xl animate-fadeIn space-y-4">
-                  <h3 className="text-xs font-black text-emerald-600 uppercase tracking-wider border-b border-emerald-100 pb-3">
-                    Bước 4: Duyệt Đề & Lưu Trữ
-                  </h3>
-                  
-                  {generatedQuestions.map((q, idx) => (
-                    <div key={idx} className="space-y-4">
-                      
-                      <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-inner overflow-x-auto text-center font-medium text-slate-800 text-sm">
-                        <BlockMath math={q.question || '\\text{Lỗi cấu trúc}'} />
-                      </div>
-
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-xs font-semibold">
-                        {q.type === 'MCQ' && q.options && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-600">
-                            {Object.entries(q.options).map(([key, value]: any) => (
-                              <p key={key} className={q.correctAnswer === key ? 'text-emerald-600 font-black' : ''}>
-                                <span className="font-black mr-1">{key}.</span> {value}
-                              </p>
-                            ))}
-                          </div>
-                        )}
-
-                        {q.type === 'TF' && q.statements && (
-                          <div className="space-y-1.5 text-slate-600">
-                            {q.statements.map((st: any, i: number) => (
-                              <p key={i}>
-                                <span className="font-black text-purple-600 uppercase mr-1">Ý {st.id}):</span> {st.text} ➔ 
-                                <span className={`ml-1 font-black ${st.correct ? 'text-emerald-600' : 'text-rose-500'}`}>{st.correct ? 'ĐÚNG' : 'SAI'}</span>
-                              </p>
-                            ))}
-                          </div>
-                        )}
-
-                        {q.type === 'SA' && (
-                          <p className="text-slate-600">
-                            🔑 Đáp số: <span className="text-amber-600 font-mono font-black text-sm bg-white px-2 py-0.5 rounded border ml-1">{q.correctAnswer}</span>
-                          </p>
-                        )}
-                        
-                        {/* Hiển thị Nguồn đối chiếu mà AI đã tuân thủ */}
-                        {q.source && (
-                          <p className="text-emerald-700 italic border-t border-slate-200 mt-2 pt-2 text-[10px]">
-                            📌 Nguồn đối chiếu: {q.source}
-                          </p>
-                        )}
-                      </div>
-
-                      <button
-                        onClick={() => handleSaveToBank(q)}
-                        className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_4px_0_0_#047857] active:translate-y-1 active:shadow-[0_0px_0_0_#047857] transition-all flex justify-center items-center gap-2"
-                      >
-                        ✔ Phê Duyệt Nạp Vào Ngân Hàng
-                      </button>
-
-                    </div>
-                  ))}
-                </div>
-              )}
-
             </div>
-          </div>
 
+            {/* CỘT PHẢI: KẾT QUẢ HIỂN THỊ */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden min-h-[500px]">
+                <div className="bg-gray-100 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                  <h3 className="text-sm font-black text-gray-700 uppercase tracking-wider">
+                    Kết Quả Từ Trợ Lý AI
+                  </h3>
+                  {aiResponse && (
+                    <button 
+                      onClick={handleCopyContent}
+                      className="px-4 py-1.5 bg-white text-purple-600 border border-purple-200 text-xs font-bold uppercase rounded-lg shadow-sm hover:bg-purple-50 transition-all"
+                    >
+                      📋 Copy Văn Bản
+                    </button>
+                  )}
+                </div>
+                
+                <div className="flex-1 p-6 overflow-y-auto">
+                  {aiResponse ? (
+                    <div className="prose max-w-none text-gray-800">
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkMath]} 
+                        rehypePlugins={[rehypeKatex]}
+                      >
+                        {aiResponse}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4 opacity-60">
+                      <span className="text-6xl">🤖</span>
+                      <p className="text-sm font-medium">Bản thảo giáo án sẽ xuất hiện tại đây.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
       </main>
     </AuthGuard>
