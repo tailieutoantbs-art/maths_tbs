@@ -11,8 +11,8 @@ interface AuthGuardProps {
 
 export default function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     // Lắng nghe trạng thái đăng nhập thời gian thực từ Firebase Auth
@@ -21,23 +21,30 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
-        // Nếu không có phiên đăng nhập, trục xuất về trang login ngay lập tức
-        router.push('/login');
+        // Nếu không có phiên đăng nhập hợp lệ, đẩy ngay ra trang login giáo viên
+        router.push('/teacher/login');
       }
-      setChecking(false);
+      setIsLoading(false);
     });
 
+    // Hủy lắng nghe khi component unmount để tránh rò rỉ bộ nhớ
     return () => unsubscribe();
   }, [router]);
 
-  if (checking) {
+  // GIAO DIỆN CHỜ TRONG KHI KIỂM TRA QUYỀN TRUY CẬP
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#E0F2FE] flex items-center justify-center text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">
-        🔒 Hệ thống đang kiểm tra quyền truy cập nội bộ...
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center font-sans">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-xs font-black window-title uppercase tracking-widest text-indigo-400 animate-pulse">
+            Đang kiểm tra quyền truy cập quản trị... 🔒
+          </p>
+        </div>
       </div>
     );
   }
 
-  // Nếu đã xác thực hợp lệ, cho phép hiển thị nội dung bên trong trang
+  // Nếu đã xác thực thành công, cho phép hiển thị nội dung trang (children)
   return isAuthenticated ? <>{children}</> : null;
 }
