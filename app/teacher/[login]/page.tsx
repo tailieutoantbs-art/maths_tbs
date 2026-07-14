@@ -2,21 +2,39 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { auth } from '@/lib/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useToast } from '@/components/ToastProvider';
 
 export default function TeacherLoginPage() {
   const router = useRouter();
+  const { showToast } = useToast();
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleTeacherLogin = (e: React.FormEvent) => {
+  const handleTeacherLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Giả lập kiểm tra tài khoản quản trị chuyên môn Tổ Toán
-    setTimeout(() => {
+    try {
+      // Kết nối trực tiếp với hệ thống xác thực của Firebase
+      await signInWithEmailAndPassword(auth, email, password);
+      showToast('success', 'Xác thực thành công! Đang chuyển hướng...');
       router.push('/dashboard');
-    }, 1200);
+    } catch (error: any) {
+      // Xử lý các mã lỗi thường gặp
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        showToast('error', 'Tài khoản không tồn tại hoặc sai thông tin!');
+      } else if (error.code === 'auth/wrong-password') {
+        showToast('error', 'Sai mật mã truy cập!');
+      } else {
+        showToast('error', 'Lỗi kết nối đến máy chủ bảo mật.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -32,7 +50,7 @@ export default function TeacherLoginPage() {
             Cổng Đăng Nhập Quản Trị
           </h2>
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">
-            Dành riêng cho Hội đồng Chuyên môn TBS
+            Dành riêng cho Hội đồng Chuyên môn
           </p>
         </div>
 
@@ -64,7 +82,7 @@ export default function TeacherLoginPage() {
           <button 
             type="submit"
             disabled={isLoading}
-            className="w-full py-4 mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm uppercase rounded-2xl tracking-widest shadow-lg transition-all flex justify-center items-center"
+            className="w-full py-4 mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm uppercase rounded-2xl tracking-widest shadow-lg transition-all flex justify-center items-center disabled:opacity-50"
           >
             {isLoading ? 'Đang thiết lập phiên làm việc... ⚙️' : 'XÁC THỰC QUẢN TRỊ'}
           </button>
