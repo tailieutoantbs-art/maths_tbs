@@ -9,23 +9,39 @@ export default function WelcomePortal() {
   const router = useRouter();
 
   return (
-    <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans relative overflow-hidden">
+    <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 md:p-8 font-sans relative">
       
       {/* Vòng tròn trang trí nền */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-sky-100 rounded-full blur-3xl opacity-60"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[30vw] h-[30vw] bg-blue-100 rounded-full blur-3xl opacity-60"></div>
+      <div className="fixed top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-sky-100 rounded-full blur-3xl opacity-60 pointer-events-none"></div>
+      <div className="fixed bottom-[-10%] right-[-10%] w-[30vw] h-[30vw] bg-blue-100 rounded-full blur-3xl opacity-60 pointer-events-none"></div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 p-10 md:p-14 max-w-3xl w-full text-center relative z-10">
+      {/* Phần nội dung chính đẩy ra giữa */}
+      <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 p-8 md:p-12 max-w-3xl w-full text-center relative z-10 my-auto">
         
+        {/* KHU VỰC LOGO CHÍNH THỨC */}
+        <div className="mb-6 flex justify-center">
+          <div className="w-24 h-24 bg-white border-4 border-sky-50 rounded-full flex items-center justify-center shadow-md overflow-hidden relative group">
+            <img 
+              src="/logo.png" 
+              alt="Logo Toán TBS" 
+              className="w-full h-full object-cover relative z-10"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <span className="text-4xl absolute text-slate-300 group-hover:scale-110 transition-transform">🏫</span>
+          </div>
+        </div>
+
         {/* Badge Phiên bản */}
-        <div className="inline-block px-6 py-2 bg-sky-50 border border-sky-100 rounded-full mb-8">
+        <div className="inline-block px-6 py-2 bg-sky-50 border border-sky-100 rounded-full mb-6">
           <span className="text-xs font-black text-sky-600 uppercase tracking-widest">
             Phiên bản 1.0 (Phát hành trực tuyến)
           </span>
         </div>
 
         {/* Tiêu đề chính */}
-        <h1 className="text-4xl md:text-5xl font-black text-[#0284C7] mb-4 tracking-tight">
+        <h1 className="text-4xl md:text-5xl font-black text-[#0284C7] mb-3 tracking-tight">
           Hệ Thống Học Tập<br />Toán_TBS
         </h1>
         <p className="text-slate-500 font-medium text-lg md:text-xl mb-10">
@@ -33,7 +49,7 @@ export default function WelcomePortal() {
         </p>
 
         {/* Khung Công thức Toán học */}
-        <div className="border border-slate-200 rounded-3xl p-8 mb-12 bg-white relative shadow-sm">
+        <div className="border border-slate-200 rounded-3xl p-6 md:p-8 mb-10 bg-white relative shadow-sm">
           <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
             Công thức Newton-Leibniz
           </span>
@@ -42,7 +58,7 @@ export default function WelcomePortal() {
           </div>
         </div>
 
-        {/* --- KHU VỰC PHÂN LUỒNG MỚI --- */}
+        {/* Khu vực Nút bấm phân luồng */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button 
             onClick={() => router.push('/student/login')}
@@ -67,10 +83,14 @@ export default function WelcomePortal() {
 
       </div>
       
-      {/* Footer Branding */}
-      <div className="absolute bottom-6 w-full text-center">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          © 2026 Tổ Toán - Trường TH, THCS và THPT Thanh Bình
+      {/* --- FOOTER: BẢN QUYỀN THƯƠNG HIỆU THẦY HÙNG TBS --- */}
+      {/* Đã sửa lỗi ẩn footer, đảm bảo luôn hiển thị khi cuộn trang */}
+      <div className="relative z-10 mt-6 md:mt-8 text-center space-y-1.5 pb-4">
+        <p className="text-xs font-black text-slate-500 uppercase tracking-widest">
+          © 2026 Bản quyền phần mềm: <span className="text-sky-600 text-[13px] font-extrabold ml-1">Thầy Hùng TBS</span>
+        </p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          Tổ Toán - Trường TH, THCS và THPT Thanh Bình
         </p>
       </div>
 

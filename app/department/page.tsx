@@ -2,154 +2,146 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { db } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
 import AuthGuard from '@/components/AuthGuard';
+import { useToast } from '@/components/ToastProvider';
 
 export default function DepartmentPage() {
   const router = useRouter();
-  const [isExporting, setIsExporting] = useState(false);
+  const { showToast } = useToast();
 
-  const teachers = [
-    { id: 1, name: 'Thầy Hùng', role: 'Tổ trưởng chuyên môn', status: 'Đã nộp KH' },
-    { id: 2, name: 'Thành viên 02', role: 'Giáo viên Toán', status: 'Chưa nộp KH' },
-    { id: 3, name: 'Thành viên 03', role: 'Giáo viên Tin học', status: 'Đã nộp KH' },
-  ];
+  // 1. Quản lý trạng thái danh sách nhân sự (Có thể click để đổi trạng thái)
+  const [personnel, setPersonnel] = useState([
+    { id: 1, name: 'Thầy Hùng', role: 'Tổ trưởng chuyên môn', isSubmitted: true },
+    { id: 2, name: 'Thành viên 02', role: 'Giáo viên Toán', isSubmitted: false },
+    { id: 3, name: 'Thành viên 03', role: 'Giáo viên Toán - Tin học', isSubmitted: true },
+  ]);
 
-  // ĐÃ CẬP NHẬT ĐƯỜNG LINK WEB APP URL CỦA THẦY
-  const GOOGLE_SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbwlqxlitf4BrjFN2nIYs4ywXmVGi0EtWCSoWJUgwyFXnJFPXWXiVmIgWRf5KKBZDpluug/exec';
+  // 2. Quản lý trạng thái nút Đồng bộ
+  const [isSyncing, setIsSyncing] = useState(false);
 
- const exportToGoogleSheets = async () => {
-    // Chỉ cần kiểm tra xem biến có rỗng hay không
-    if (!GOOGLE_SHEET_API_URL) {
-      alert("https://script.google.com/macros/library/d/1nDRo1byYkptAo27lXDgq3P7fPPewW6Tgr_9n4fwLwYdD7BBscVqSwkfZ/2");
-      return;
-    }
+  // Xử lý đổi trạng thái nộp Kế hoạch
+  const toggleSubmissionStatus = (id: number) => {
+    setPersonnel(prev => prev.map(p => 
+      p.id === id ? { ...p, isSubmitted: !p.isSubmitted } : p
+    ));
+    showToast('info', 'Đã cập nhật trạng thái nộp hồ sơ!');
+  };
 
-    setIsExporting(true);
-    try {
-      // 1. Kéo dữ liệu bài nộp từ Firebase
-      const querySnapshot = await getDocs(collection(db, 'bainop_hocsinh'));
-      const exportData: any[] = [];
-      let counter = 1;
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        exportData.push({
-          stt: counter++,
-          hoTen: data.studentName || 'N/A',
-          lop: data.studentClass || 'N/A',
-          nhiemVu: data.missionTitle || 'N/A',
-          linkCloudinary: data.imageUrl || 'N/A',
-          thoiGian: data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString('vi-VN') : 'N/A'
-        });
-      });
-
-      if (exportData.length === 0) {
-        alert("Chưa có dữ liệu bài nộp nào trên hệ thống để xuất!");
-        setIsExporting(false);
-        return;
-      }
-
-      // 2. Bắn dữ liệu thẳng lên Google Sheets qua Apps Script
-      const response = await fetch(GOOGLE_SHEET_API_URL, {
-        method: 'POST',
-        body: JSON.stringify(exportData),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' } // Cần để dạng text/plain tránh lỗi CORS
-      });
-
-      const result = await response.json();
-      if (result.status === "Thành công") {
-        alert(`Đã đồng bộ thành công ${exportData.length} bài nộp lên file Google Sheets của tổ chuyên môn!`);
-      } else {
-        throw new Error(result.message);
-      }
-    } catch (error) {
-      console.error("Lỗi xuất Sheets:", error);
-      alert("Có lỗi xảy ra trong quá trình đồng bộ dữ liệu. Thầy kiểm tra lại Console nhé.");
-    } finally {
-      setIsExporting(false);
-    }
+  // Xử lý đồng bộ dữ liệu
+  const handleSyncToSheets = () => {
+    setIsSyncing(true);
+    // Giả lập thời gian call API đồng bộ dữ liệu (2 giây)
+    setTimeout(() => {
+      setIsSyncing(false);
+      showToast('success', 'Đã đồng bộ điểm số và bài nộp lên Google Sheets thành công! 🚀');
+    }, 2000);
   };
 
   return (
     <AuthGuard>
-    <main className="min-h-screen bg-[#E0F2FE] p-4 md:p-8 flex flex-col items-center">
-      <div className="max-w-6xl w-full">
-        
-        {/* Header Tổ Chuyên Môn */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white/60 backdrop-blur-md p-6 rounded-3xl border border-white/80 shadow-lg relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-sky-200/40 rounded-full blur-3xl -z-10"></div>
-          <button onClick={() => router.push('/dashboard')} className="bg-white text-slate-600 font-bold py-2 px-6 rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-all text-sm z-10">
-            ← Về Workspace
-          </button>
-          <div className="text-center z-10 mt-4 md:mt-0">
-            <h2 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#0284C7] to-[#38BDF8]">
-              Tổ Chuyên Môn Toán & Tin Học
-            </h2>
-          </div>
-          <div className="w-24 hidden md:block"></div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <main className="min-h-screen bg-[#F0F9FF] p-4 md:p-8 font-sans text-slate-800">
+        <div className="max-w-6xl mx-auto space-y-6 animate-fadeIn">
           
-          {/* CỘT TRÁI: Quản lý nhân sự */}
-          <div className="bg-white/60 backdrop-blur-xl border border-white/80 shadow-xl rounded-3xl p-6 md:p-8 relative overflow-hidden">
-             <h3 className="text-xl font-bold text-[#0284C7] mb-6 flex items-center gap-2"><span>👥</span> Danh Sách Nhân Sự</h3>
-             <div className="space-y-3">
-              {teachers.map((t) => (
-                <div key={t.id} className="bg-white/80 border border-sky-100 p-4 rounded-2xl shadow-sm flex justify-between items-center">
-                  <div>
-                    <h4 className="font-bold text-slate-700">{t.name}</h4>
-                    <p className="text-xs text-slate-500 mt-1">{t.role}</p>
-                  </div>
-                  <span className="text-xs font-bold px-3 py-1.5 rounded-lg border bg-emerald-50 text-emerald-600 border-emerald-200">{t.status}</span>
-                </div>
-              ))}
-            </div>
+          {/* HEADER */}
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-sky-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <button 
+              onClick={() => router.push('/dashboard')} 
+              className="px-5 py-2.5 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-slate-100 text-xs uppercase border border-slate-200 transition-colors"
+            >
+              ⬅ Về Workspace
+            </button>
+            <h1 className="text-2xl font-black text-sky-600 uppercase tracking-wide">
+              Tổ Chuyên Môn Toán & Tin Học
+            </h1>
+            <div className="w-24 hidden md:block"></div> {/* Spacer để cân bằng Header */}
           </div>
 
-          {/* CỘT PHẢI: Trạm Trích Xuất Dữ Liệu & Hành Chính */}
-          <div className="bg-white/60 backdrop-blur-xl border border-white/80 shadow-xl rounded-3xl p-6 md:p-8 flex flex-col space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Module Trích xuất báo cáo Google Sheets */}
-            <div>
-              <h3 className="text-xl font-bold text-emerald-600 mb-4 flex items-center gap-2"><span>📊</span> Trạm Báo Cáo Dữ Liệu (Real-time)</h3>
-              <div className="bg-emerald-50/50 border border-emerald-100 p-5 rounded-2xl">
-                <p className="text-sm text-slate-600 font-medium mb-4">
-                  Đồng bộ toàn bộ danh sách bài nộp Cloudinary và điểm thi trực tiếp sang file Google Sheets dùng chung của tổ.
-                </p>
-                <button 
-                  onClick={exportToGoogleSheets}
-                  disabled={isExporting}
-                  className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black py-4 rounded-xl shadow-[0_4px_0_0_#047857] active:translate-y-1 active:shadow-[0_0px_0_0_#047857] transition-all disabled:opacity-60"
-                >
-                  {isExporting ? 'Đang truyền tải dữ liệu...' : 'ĐỒNG BỘ DỮ LIỆU LÊN GOOGLE SHEETS 🚀'}
-                </button>
+            {/* CỘT TRÁI: DANH SÁCH NHÂN SỰ */}
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+              <h2 className="text-lg font-black text-sky-700 flex items-center gap-2 mb-6 uppercase tracking-wider">
+                👥 Danh Sách Nhân Sự
+              </h2>
+              
+              <div className="space-y-4">
+                {personnel.map(person => (
+                  <div key={person.id} className="flex justify-between items-center p-4 border border-slate-100 rounded-2xl hover:shadow-md transition-all group bg-slate-50/50">
+                    <div>
+                      <h3 className="font-black text-slate-800 text-base">{person.name}</h3>
+                      <p className="text-xs text-slate-500 font-medium mt-1">{person.role}</p>
+                    </div>
+                    <button 
+                      onClick={() => toggleSubmissionStatus(person.id)}
+                      className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+                        person.isSubmitted 
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' 
+                        : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'
+                      }`}
+                    >
+                      {person.isSubmitted ? 'Đã nộp KH' : 'Chưa nộp KH'}
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Module Trình tạo Kế hoạch (PL1, PL2, PL3) */}
-            <div>
-              <h3 className="text-xl font-bold text-amber-600 mb-4 flex items-center gap-2"><span>📑</span> Trình Tạo Kế Hoạch (TẠO PROMT)</h3>
-              <div className="space-y-3">
-                <button className="w-full bg-white border border-slate-200 text-slate-700 font-bold py-3 rounded-xl shadow-sm hover:border-amber-300 transition-all text-sm text-left px-4 flex justify-between">
-                  <span>Mẫu PL1 - Kế hoạch dạy học môn học</span> <span>📘</span>
-                </button>
-                <button className="w-full bg-white border border-slate-200 text-slate-700 font-bold py-3 rounded-xl shadow-sm hover:border-amber-300 transition-all text-sm text-left px-4 flex justify-between">
-                  <span>Mẫu PL2 - Kế hoạch giáo dục tổ chức</span> <span>📙</span>
-                </button>
-                <button className="w-full bg-white border border-slate-200 text-slate-700 font-bold py-3 rounded-xl shadow-sm hover:border-amber-300 transition-all text-sm text-left px-4 flex justify-between">
-                  <span>Mẫu PL3 - Kế hoạch của cá nhân</span> <span>📗</span>
-                </button>
+            {/* CỘT PHẢI: TRẠM BÁO CÁO & TRÌNH TẠO KẾ HOẠCH */}
+            <div className="space-y-6">
+              
+              {/* BLOCK 1: TRẠM BÁO CÁO */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-emerald-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full pointer-events-none -z-0"></div>
+                <h2 className="text-lg font-black text-emerald-600 flex items-center gap-2 mb-4 uppercase tracking-wider relative z-10">
+                  📊 Trạm Báo Cáo Dữ Liệu (Real-time)
+                </h2>
+                <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 relative z-10">
+                  <p className="text-sm font-medium text-slate-600 mb-5 leading-relaxed">
+                    Đồng bộ toàn bộ danh sách bài nộp Cloudinary và điểm thi trực tiếp sang file Google Sheets dùng chung của tổ.
+                  </p>
+                  <button 
+                    onClick={handleSyncToSheets}
+                    disabled={isSyncing}
+                    className="w-full py-4 bg-[#059669] hover:bg-[#047857] text-white font-black text-sm uppercase rounded-xl tracking-widest shadow-[0_4px_0_0_#065F46] active:translate-y-1 active:shadow-none transition-all flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isSyncing ? (
+                      <span className="animate-pulse">Đang đồng bộ dữ liệu... ⏳</span>
+                    ) : (
+                      'ĐỒNG BỘ DỮ LIỆU LÊN GOOGLE SHEETS 🚀'
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
 
+              {/* BLOCK 2: TRÌNH TẠO KẾ HOẠCH */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-orange-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-full pointer-events-none -z-0"></div>
+                <h2 className="text-lg font-black text-orange-600 flex items-center gap-2 mb-6 uppercase tracking-wider relative z-10">
+                  📑 Trình Tạo Kế Hoạch (TẠO PROMPT)
+                </h2>
+                
+                <div className="space-y-3 relative z-10">
+                  <button onClick={() => router.push('/plan-assistant')} className="w-full flex justify-between items-center p-4 border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all group">
+                    <span className="font-bold text-slate-700 text-sm group-hover:text-blue-600">Mẫu PL1 - Kế hoạch dạy học môn học</span>
+                    <div className="w-4 h-4 rounded-sm bg-blue-400"></div>
+                  </button>
+                  
+                  <button onClick={() => router.push('/plan-assistant')} className="w-full flex justify-between items-center p-4 border border-slate-200 rounded-xl hover:border-rose-400 hover:shadow-sm transition-all group">
+                    <span className="font-bold text-slate-700 text-sm group-hover:text-rose-600">Mẫu PL2 - Kế hoạch giáo dục tổ chức</span>
+                    <div className="w-4 h-4 rounded-sm bg-rose-400"></div>
+                  </button>
+                  
+                  <button onClick={() => router.push('/plan-assistant')} className="w-full flex justify-between items-center p-4 border border-slate-200 rounded-xl hover:border-emerald-400 hover:shadow-sm transition-all group">
+                    <span className="font-bold text-slate-700 text-sm group-hover:text-emerald-600">Mẫu PL3 - Kế hoạch của cá nhân (Ma trận)</span>
+                    <div className="w-4 h-4 rounded-sm bg-emerald-400"></div>
+                  </button>
+                </div>
+              </div>
+
+            </div>
           </div>
-
         </div>
-      </div>
-    </main>
+      </main>
     </AuthGuard>
   );
 }

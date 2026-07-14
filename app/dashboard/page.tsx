@@ -65,17 +65,23 @@ export default function TeacherDashboard() {
              <h3 className="text-lg font-black text-emerald-700 mb-4 flex items-center gap-2 border-b-2 border-emerald-50 pb-2 mt-8">
                📚 QUẢN LÝ CHUYÊN MÔN & NGÂN HÀNG ĐỀ
              </h3>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <Link href="/users" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all hover:-translate-y-1 group border-l-4 border-l-sky-500">
+                  <div className="text-4xl mb-3">🗂️</div>
+                  <h4 className="font-bold text-slate-800 text-lg mb-2">Hồ Sơ & Nhân Sự</h4>
+                  <p className="text-xs text-slate-500 font-medium">Quản lý tài khoản học sinh, reset mật khẩu và danh sách cán bộ giáo viên.</p>
+                </Link>
+
                 <Link href="/department" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all hover:-translate-y-1 group border-l-4 border-l-teal-500">
                   <div className="text-4xl mb-3">🏢</div>
                   <h4 className="font-bold text-slate-800 text-lg mb-2">Tổ Chuyên Môn Toán</h4>
-                  <p className="text-xs text-slate-500 font-medium">Quản lý nhân sự, phân công giảng dạy và theo dõi tiến độ chung của tổ.</p>
+                  <p className="text-xs text-slate-500 font-medium">Quản lý tiến độ nộp kế hoạch và đồng bộ dữ liệu điểm số lên Google Sheets.</p>
                 </Link>
 
                 <Link href="/exams" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all hover:-translate-y-1 group border-l-4 border-l-emerald-500">
                   <div className="text-4xl mb-3">📝</div>
                   <h4 className="font-bold text-slate-800 text-lg mb-2">Ngân Hàng Đề Thi V2</h4>
-                  <p className="text-xs text-slate-500 font-medium">Tạo Prompt ép AI sinh câu hỏi chuẩn JSON, quản lý đồ thị và đóng gói phôi đề.</p>
+                  <p className="text-xs text-slate-500 font-medium">Tạo câu hỏi chuẩn JSON, quản lý đồ thị và đóng gói phôi đề kiểm tra.</p>
                 </Link>
 
                 <Link href="/documents" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all hover:-translate-y-1 group border-l-4 border-l-green-500">
