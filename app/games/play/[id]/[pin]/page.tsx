@@ -1,19 +1,25 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
 import { useToast } from '@/components/ToastProvider';
 
 export default function StudentGamepadScreen() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const { showToast } = useToast();
   
   const pin = params.pin as string;
-  const studentName = searchParams.get('name') || 'Chiến binh ẩn danh';
+  const [studentName, setStudentName] = useState('Chiến binh ẩn danh');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    setStudentName(params.get('name') || 'Chiến binh ẩn danh');
+  }, []);
 
   // Trạng thái trò chơi đồng bộ từ Firebase
   const [gameDocId, setGameDocId] = useState<string | null>(null);

@@ -1,16 +1,21 @@
 'use client';
 
-import React from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function StudentHomePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  
-  // Lấy tên học sinh từ URL session giả lập, nếu không có sẽ dùng tên mặc định
-  const studentName = searchParams.get('name') || 'Chiến binh TBS';
+  const [studentName, setStudentName] = useState('Chiến binh TBS');
   const classroom = '10A1'; // Giả lập dữ liệu lớp học
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const nameFromUrl = params.get('name') || 'Chiến binh TBS';
+    setStudentName(nameFromUrl);
+  }, []);
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-700">

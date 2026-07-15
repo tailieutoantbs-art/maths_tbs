@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/components/ToastProvider';
@@ -10,12 +10,18 @@ import { BlockMath } from 'react-katex';
 
 export default function StudentPracticeGameScreen() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const { showToast } = useToast();
   
   const pin = params.pin as string;
-  const studentName = searchParams.get('name') || 'Chiến binh';
+  const [studentName, setStudentName] = useState('Chiến binh');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    setStudentName(urlParams.get('name') || 'Chiến binh');
+  }, []);
 
   const [gameData, setGameData] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);

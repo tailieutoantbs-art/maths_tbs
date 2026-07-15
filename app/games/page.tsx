@@ -1,20 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ToastProvider';
 
 export default function GameJoinLobbyPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { showToast } = useToast();
 
-  // Lấy tên học sinh tự động từ cổng đăng nhập chuyển qua (nếu có)
-  const initialName = searchParams.get('name') || '';
-  
   const [pin, setPin] = useState('');
-  const [studentName, setStudentName] = useState(initialName);
+  const [studentName, setStudentName] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const nameFromUrl = params.get('name') || '';
+    setStudentName(nameFromUrl);
+  }, []);
 
   const handleEnterArena = (e: React.FormEvent) => {
     e.preventDefault();

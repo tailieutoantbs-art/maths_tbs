@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import React, { Suspense, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
 
@@ -17,10 +17,16 @@ interface GameQuestion {
 
 function PlayerGameInterface() {
   const params = useParams();
-  const searchParams = useSearchParams();
   
   const pinCode = params?.id as string;
-  const studentName = searchParams.get('name') || 'Chiến binh Ẩn danh';
+  const [studentName, setStudentName] = useState('Chiến binh Ẩn danh');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    setStudentName(urlParams.get('name') || 'Chiến binh Ẩn danh');
+  }, []);
 
   // Trạng thái phòng chơi kết nối từ Host
   const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'ended'>('waiting');
