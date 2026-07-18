@@ -56,7 +56,7 @@ export default function WelcomePortal() {
               {/* Nút bấm phân luồng */}
               <div className="flex flex-col gap-4">
                 <button 
-                  onClick={() => router.push('/login')}
+                  onClick={() => router.push('/student/login')}
                   className="group relative flex items-center justify-start p-4 bg-gradient-to-r from-[#0EA5E9] to-[#0284C7] rounded-xl shadow-[0_4px_0_0_#0369A1] active:translate-y-1 active:shadow-[0_0px_0_0_#0369A1] transition-all overflow-hidden"
                 >
                   <div className="absolute inset-0 bg-white/20 translate-x-full group-hover:translate-x-0 transition-transform duration-300 ease-out"></div>
@@ -68,7 +68,7 @@ export default function WelcomePortal() {
                 </button>
 
                 <button 
-                  onClick={() => router.push('/login')}
+                  onClick={() => router.push('/teacher/login')}
                   className="group relative flex items-center justify-start p-4 bg-white border-2 border-slate-200 rounded-xl hover:border-indigo-400 hover:shadow-md active:scale-[0.98] transition-all overflow-hidden"
                 >
                   <span className="text-3xl mr-4 relative z-10 bg-slate-50 group-hover:bg-indigo-50 p-2 rounded-lg transition-colors">👨‍🏫</span>
