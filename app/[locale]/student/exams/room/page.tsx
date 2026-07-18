@@ -154,53 +154,55 @@ export default function StudentExamRoomPage() {
     setEarnedPoints(expPoints);
 
     try {
-      // 1. Lưu bài làm
-      await addDoc(collection(db, 'exam_results'), {
-        studentId: studentId.trim().toUpperCase(),
-        studentName: studentName.trim(),
-        studentClass: studentClass,
-        score: score,
-        arenaPin: pin,
-        totalQuestions: questions.length,
-        submittedAt: serverTimestamp()
-      });
+      if (studentId !== 'GUEST') {
+        // 1. Lưu bài làm
+        await addDoc(collection(db, 'exam_results'), {
+          studentId: studentId.trim().toUpperCase(),
+          studentName: studentName.trim(),
+          studentClass: studentClass,
+          score: score,
+          arenaPin: pin,
+          totalQuestions: questions.length,
+          submittedAt: serverTimestamp()
+        });
 
-      // 2. Cộng điểm kinh nghiệm và huy hiệu vào profile học sinh
-      if (studentId) {
-        const studentRef = doc(db, 'students', studentId.toUpperCase());
-        const studentDoc = await getDoc(studentRef);
-        
-        const newBadges = [];
-        if (score === 10) {
-           newBadges.push('PERFECT_SCORE');
-        } else if (score >= 8) {
-           newBadges.push('EXCELLENT');
-        }
+        // 2. Cộng điểm kinh nghiệm và huy hiệu vào profile học sinh
+        if (studentId) {
+          const studentRef = doc(db, 'students', studentId.toUpperCase());
+          const studentDoc = await getDoc(studentRef);
+          
+          const newBadges = [];
+          if (score === 10) {
+             newBadges.push('PERFECT_SCORE');
+          } else if (score >= 8) {
+             newBadges.push('EXCELLENT');
+          }
 
-        if (studentDoc.exists()) {
-          const studentData = studentDoc.data();
-          if (!studentData.badges || studentData.badges.length === 0) {
+          if (studentDoc.exists()) {
+            const studentData = studentDoc.data();
+            if (!studentData.badges || studentData.badges.length === 0) {
+               newBadges.push('FIRST_BLOOD');
+            }
+
+            const updateData: any = {
+              arenaPoints: increment(expPoints)
+            };
+
+            if (newBadges.length > 0) {
+              updateData.badges = arrayUnion(...newBadges);
+            }
+
+            await updateDoc(studentRef, updateData);
+          } else {
              newBadges.push('FIRST_BLOOD');
+             await setDoc(studentRef, {
+               fullName: studentName.trim(),
+               classroom: studentClass,
+               arenaPoints: expPoints,
+               badges: newBadges,
+               createdAt: serverTimestamp()
+             });
           }
-
-          const updateData: any = {
-            arenaPoints: increment(expPoints)
-          };
-
-          if (newBadges.length > 0) {
-            updateData.badges = arrayUnion(...newBadges);
-          }
-
-          await updateDoc(studentRef, updateData);
-        } else {
-           newBadges.push('FIRST_BLOOD');
-           await setDoc(studentRef, {
-             fullName: studentName.trim(),
-             classroom: studentClass,
-             arenaPoints: expPoints,
-             badges: newBadges,
-             createdAt: serverTimestamp()
-           });
         }
       }
     } catch (error) {
