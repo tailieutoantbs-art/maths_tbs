@@ -52,7 +52,8 @@ export default function TeacherDashboard() {
         const classMap: Record<string, { count: number; totalScores: number; examCount: number }> = {};
         
         const parsedStudents: StudentData[] = rawStudents.map((s) => {
-          const sClass = s.classroom || 'Unknown';
+          const sClass = s.classroom || s.class || 'Unknown';
+          const sName = s.fullName || s.name || 'Không tên';
           
           if (!classMap[sClass]) {
             classMap[sClass] = { count: 0, totalScores: 0, examCount: 0 };
@@ -61,7 +62,7 @@ export default function TeacherDashboard() {
 
           // Find exams for this student
           const studentExams = rawExams.filter(
-            (ex) => ex.studentName === s.fullName && ex.studentClass === sClass
+            (ex) => ex.studentName === sName && ex.studentClass === sClass
           );
 
           let studentAvgScore = 0;
@@ -73,8 +74,8 @@ export default function TeacherDashboard() {
           }
 
           return {
-            id: s.studentId,
-            name: s.fullName,
+            id: s.studentId || s.id || 'Unknown',
+            name: sName,
             classId: sClass,
             className: sClass,
             score: studentAvgScore,
