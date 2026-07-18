@@ -581,9 +581,9 @@ export default function UsersManagementPage() {
                           </td>
                           <td className="px-4 py-3 text-xs italic">{hs.note}</td>
                           <td className="px-4 py-3 text-center space-x-2">
-                            {isAdmin && <button onClick={() => handleOpenEditStudent(hs)} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>}
-                            {isAdmin && <button onClick={() => handleResetPassword(hs.id, hs.name)} className="text-xs bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Reset MK</button>}
-                            {isAdmin && <button onClick={() => handleDeleteStudent(hs.id, hs.name)} className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Xóa</button>}
+                            <button onClick={() => handleOpenEditStudent(hs)} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>
+                            <button onClick={() => handleResetPassword(hs.id, hs.name)} className="text-xs bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Reset MK</button>
+                            <button onClick={() => handleDeleteStudent(hs.id, hs.name)} className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Xóa</button>
                           </td>
                         </tr>
                       ))}
@@ -661,9 +661,9 @@ export default function UsersManagementPage() {
                         </div>
 
                         <div className="mt-5 flex gap-2 pt-4 border-t border-slate-100">
-                          {isAdmin && <button onClick={() => handleOpenEditTeacher(gv)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors shadow-sm">Sửa</button>}
-                          {isAdmin && <button onClick={() => handleToggleLockTeacher(gv.id, gv.name, gv.status)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-orange-600 hover:bg-orange-50 hover:border-orange-200 transition-colors shadow-sm">{gv.status === 'Đang công tác' ? 'Khóa' : 'Mở'}</button>}
-                          {isAdmin && <button onClick={() => handleDeleteTeacher(gv.id, gv.name)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors shadow-sm">Xóa</button>}
+                          <button onClick={() => handleOpenEditTeacher(gv)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors shadow-sm">Sửa</button>
+                          <button onClick={() => handleToggleLockTeacher(gv.id, gv.name, gv.status)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-orange-600 hover:bg-orange-50 hover:border-orange-200 transition-colors shadow-sm">{gv.status === 'Đang công tác' ? 'Khóa' : 'Mở'}</button>
+                          <button onClick={() => handleDeleteTeacher(gv.id, gv.name)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors shadow-sm">Xóa</button>
                         </div>
                       </div>
                     </div>
@@ -737,11 +737,11 @@ export default function UsersManagementPage() {
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 text-center space-x-2">
-                                  {isAdmin && <button onClick={() => {
+                                  <button onClick={() => {
                                     setEvaluationForm(ev);
                                     setIsEvaluationModalOpen(true);
-                                  }} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>}
-                                  {isAdmin && <button onClick={() => handleDeleteEvaluation(ev.id)} className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 px-3 py-1.5 rounded-lg font-bold transition-colors">Xóa</button>}
+                                  }} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>
+                                  <button onClick={() => handleDeleteEvaluation(ev.id)} className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 px-3 py-1.5 rounded-lg font-bold transition-colors">Xóa</button>
                                 </td>
                               </>
                             ) : (
@@ -751,7 +751,7 @@ export default function UsersManagementPage() {
                                   <span className="text-rose-500 font-bold text-xs bg-rose-50 px-3 py-1 rounded-full">⚠ Chưa có đánh giá</span>
                                 </td>
                                 <td className="px-4 py-3 text-center space-x-2">
-                                  {isAdmin && <button onClick={() => {
+                                  <button onClick={() => {
                                     setEvaluationForm({
                                       id: `EV${Date.now()}`,
                                       teacherId: gv.id,
@@ -765,7 +765,7 @@ export default function UsersManagementPage() {
                                       note: ''
                                     });
                                     setIsEvaluationModalOpen(true);
-                                  }} className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-1.5 rounded-lg font-bold transition-colors border border-amber-200 shadow-sm">Đánh giá ngay</button>}
+                                  }} className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-1.5 rounded-lg font-bold transition-colors border border-amber-200 shadow-sm">Đánh giá ngay</button>
                                 </td>
                               </>
                             )}
