@@ -66,7 +66,13 @@ function TeacherDashboard() {
              <h3 className="text-lg font-black text-emerald-700 mb-4 flex items-center gap-2 border-b-2 border-emerald-50 pb-2 mt-8">
                📚 QUẢN LÝ CHUYÊN MÔN & NGÂN HÀNG ĐỀ
              </h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
+                <Link href="/teacher/news-editor" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all hover:-translate-y-1 group border-l-4 border-l-pink-500">
+                  <div className="text-4xl mb-3">📢</div>
+                  <h4 className="font-bold text-slate-800 text-lg mb-2">Cổng Thông Tin</h4>
+                  <p className="text-xs text-slate-500 font-medium">Soạn thảo và đăng tải các bản tin, sự kiện, thông báo mới nhất.</p>
+                </Link>
+
                 <Link href="/users" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all hover:-translate-y-1 group border-l-4 border-l-sky-500">
                   <div className="text-4xl mb-3">🗂️</div>
                   <h4 className="font-bold text-slate-800 text-lg mb-2">Hồ Sơ & Nhân Sự</h4>
