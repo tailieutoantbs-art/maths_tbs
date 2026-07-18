@@ -17,6 +17,9 @@ export default function UsersManagementPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<any[]>([]);
   const [evaluations, setEvaluations] = useState<any[]>([]);
+  const currentDate = new Date();
+  const currentMonthStr = `${String(currentDate.getMonth() + 1).padStart(2, '0')}/${currentDate.getFullYear()}`;
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [isClient, setIsClient] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -42,38 +45,16 @@ export default function UsersManagementPage() {
         const teachersSnap = await getDocs(collection(db, 'teachers'));
         const tcData = teachersSnap.docs.map(doc => ({id: doc.id, ...doc.data()}));
         setTeachers(tcData as any[]);
+
+        const evSnap = await getDocs(collection(db, 'evaluations'));
+        const evData = evSnap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+        setEvaluations(evData as any[]);
       } catch (error) {
         console.error("Lỗi tải dữ liệu:", error);
       }
     };
     loadData();
-
-    const savedEvaluations = localStorage.getItem('tbs_evaluations');
-    if (savedEvaluations) {
-      try {
-        const parsed = JSON.parse(savedEvaluations);
-        const unique = Array.from(new Map(parsed.map((item: any) => [item.id, item])).values());
-        setEvaluations(unique as any[]);
-      } catch(e) {
-        setEvaluations([]);
-      }
-    } else {
-      setEvaluations([
-        { id: 'EV001', teacherId: 'GV001', teacherName: 'Thầy Hùng', month: '09/2026', observation: '2 tiết (Tốt)', progress: 'Đúng tiến độ', grading: 'Hoàn thành tốt', training: 'BD HSG Khối 10', rating: 'A', note: '' },
-        { id: 'EV002', teacherId: 'GV002', teacherName: 'Cô Phạm Mai', month: '09/2026', observation: '1 tiết (Khá)', progress: 'Chậm 1 tiết', grading: 'Trễ hạn nộp điểm', training: 'Không', rating: 'B', note: 'Nhắc nhở nộp điểm' },
-      ]);
-    }
   }, []);
-
-
-
-
-
-  React.useEffect(() => {
-    if (isClient) {
-      localStorage.setItem('tbs_evaluations', JSON.stringify(evaluations));
-    }
-  }, [evaluations, isClient]);
 
   // STATE: Quản lý Modal (Cửa sổ nổi)
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
@@ -430,18 +411,35 @@ export default function UsersManagementPage() {
     setIsTeacherModalOpen(false);
   };
 
-  const handleSaveEvaluation = (e: React.FormEvent) => {
+  const handleSaveEvaluation = async (e: React.FormEvent) => {
     e.preventDefault();
-    setEvaluations(prev => {
-      const prevMap = new Map(prev.map(ev => [ev.id, ev]));
-      prevMap.set(evaluationForm.id, evaluationForm);
-      const updatedList = Array.from(prevMap.values());
-      // Sort to show newest edit at top
-      updatedList.sort((a, b) => a.id === evaluationForm.id ? -1 : 1);
-      return updatedList;
-    });
-    showToast('success', 'Đã lưu kết quả đánh giá!');
-    setIsEvaluationModalOpen(false);
+    try {
+      setEvaluations(prev => {
+        const prevMap = new Map(prev.map(ev => [ev.id, ev]));
+        prevMap.set(evaluationForm.id, evaluationForm);
+        const updatedList = Array.from(prevMap.values());
+        updatedList.sort((a, b) => a.id === evaluationForm.id ? -1 : 1);
+        return updatedList;
+      });
+      
+      await setDoc(doc(db, 'evaluations', evaluationForm.id), evaluationForm, { merge: true });
+      showToast('success', 'Đã lưu kết quả đánh giá!');
+      setIsEvaluationModalOpen(false);
+    } catch(err) {
+      showToast('error', 'Có lỗi khi lưu đánh giá!');
+    }
+  };
+
+  const handleDeleteEvaluation = async (evalId: string) => {
+    if(window.confirm('Bạn có chắc chắn muốn xóa bản đánh giá này?')) {
+      try {
+        await deleteDoc(doc(db, 'evaluations', evalId));
+        setEvaluations(prev => prev.filter(ev => ev.id !== evalId));
+        showToast('success', 'Đã xóa đánh giá!');
+      } catch(err) {
+        showToast('error', 'Lỗi khi xóa đánh giá!');
+      }
+    }
   };
 
   const handleToggleLockTeacher = async (id: string, name: string, currentStatus: string) => {
@@ -684,31 +682,17 @@ export default function UsersManagementPage() {
                     <h2 className="text-lg font-black text-amber-600 uppercase tracking-wider">Đánh giá chuyên môn theo tháng</h2>
                     <p className="text-xs text-slate-500 font-medium mt-1">Nghiệp vụ Tổ Toán - Tin: Dự giờ, chấm bài, tiến độ và thi đua.</p>
                   </div>
-                  <div className="flex flex-wrap justify-end gap-3">
-                    <button 
-                      onClick={() => {
-                        if (teachers.length === 0) {
-                          showToast('error', 'Cần thêm giáo viên trước khi đánh giá!');
-                          return;
-                        }
-                        setEvaluationForm({
-                          id: `EV${String(evaluations.length + 1).padStart(3, '0')}`,
-                          teacherId: teachers[0].id,
-                          teacherName: teachers[0].name,
-                          month: '09/2026',
-                          observation: '',
-                          progress: 'Đúng tiến độ',
-                          grading: 'Hoàn thành tốt',
-                          training: 'Không',
-                          rating: 'A',
-                          note: ''
-                        });
-                        setIsEvaluationModalOpen(true);
-                      }}
-                      className="px-4 py-2 bg-amber-500 text-white font-bold text-xs uppercase rounded-xl hover:bg-amber-600 transition-colors shadow-sm flex items-center gap-2"
-                    >
-                      + Thêm Đánh Giá
-                    </button>
+                  <div className="flex flex-wrap justify-end gap-3 items-center">
+                    <div className="flex items-center gap-2 bg-white border border-amber-200 rounded-xl px-3 py-2 shadow-sm">
+                      <span className="text-xs font-black text-amber-700 uppercase">Tháng:</span>
+                      <input 
+                        type="text" 
+                        value={selectedMonth} 
+                        onChange={(e) => setSelectedMonth(e.target.value)} 
+                        placeholder="MM/YYYY"
+                        className="bg-transparent text-sm font-bold text-slate-700 w-20 focus:outline-none placeholder:text-slate-300" 
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -728,37 +712,69 @@ export default function UsersManagementPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {evaluations.map((ev) => (
-                        <tr key={ev.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-4 py-3 font-bold text-slate-800">
-                            {ev.teacherName}
-                            <div className="text-[10px] text-amber-600 uppercase mt-0.5">{ev.teacherId}</div>
-                          </td>
-                          <td className="px-4 py-3 font-bold">{ev.month}</td>
-                          <td className="px-4 py-3 text-xs">{ev.observation || '-'}</td>
-                          <td className="px-4 py-3 text-xs">
-                            <span className={`px-2 py-1 rounded font-bold ${ev.progress === 'Đúng tiến độ' ? 'bg-emerald-50 text-emerald-600' : ev.progress === 'Vượt tiến độ' ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600'}`}>
-                              {ev.progress}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-xs">{ev.grading}</td>
-                          <td className="px-4 py-3 text-xs">{ev.training}</td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-black text-sm ${ev.rating === 'A' ? 'bg-emerald-100 text-emerald-700' : ev.rating === 'B' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                              {ev.rating}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center space-x-2">
-                            {isAdmin && <button onClick={() => {
-                              setEvaluationForm(ev);
-                              setIsEvaluationModalOpen(true);
-                            }} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>}
-                          </td>
-                        </tr>
-                      ))}
-                      {evaluations.length === 0 && (
+                      {teachers.map((gv) => {
+                        const ev = evaluations.find(e => e.teacherId === gv.id && e.month === selectedMonth);
+                        return (
+                          <tr key={gv.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 font-bold text-slate-800">
+                              {gv.name}
+                              <div className="text-[10px] text-amber-600 uppercase mt-0.5">{gv.id}</div>
+                            </td>
+                            {ev ? (
+                              <>
+                                <td className="px-4 py-3 font-bold">{ev.month}</td>
+                                <td className="px-4 py-3 text-xs">{ev.observation || '-'}</td>
+                                <td className="px-4 py-3 text-xs">
+                                  <span className={`px-2 py-1 rounded font-bold ${ev.progress === 'Đúng tiến độ' ? 'bg-emerald-50 text-emerald-600' : ev.progress === 'Vượt tiến độ' ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600'}`}>
+                                    {ev.progress}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-xs">{ev.grading}</td>
+                                <td className="px-4 py-3 text-xs">{ev.training}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-black text-sm ${ev.rating === 'A' ? 'bg-emerald-100 text-emerald-700' : ev.rating === 'B' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                    {ev.rating}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center space-x-2">
+                                  {isAdmin && <button onClick={() => {
+                                    setEvaluationForm(ev);
+                                    setIsEvaluationModalOpen(true);
+                                  }} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>}
+                                  {isAdmin && <button onClick={() => handleDeleteEvaluation(ev.id)} className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 px-3 py-1.5 rounded-lg font-bold transition-colors">Xóa</button>}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-4 py-3 font-bold text-slate-400">{selectedMonth}</td>
+                                <td colSpan={5} className="px-4 py-3 text-center">
+                                  <span className="text-rose-500 font-bold text-xs bg-rose-50 px-3 py-1 rounded-full">⚠ Chưa có đánh giá</span>
+                                </td>
+                                <td className="px-4 py-3 text-center space-x-2">
+                                  {isAdmin && <button onClick={() => {
+                                    setEvaluationForm({
+                                      id: `EV${Date.now()}`,
+                                      teacherId: gv.id,
+                                      teacherName: gv.name,
+                                      month: selectedMonth,
+                                      observation: '',
+                                      progress: 'Đúng tiến độ',
+                                      grading: 'Hoàn thành tốt',
+                                      training: 'Không',
+                                      rating: 'A',
+                                      note: ''
+                                    });
+                                    setIsEvaluationModalOpen(true);
+                                  }} className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 px-3 py-1.5 rounded-lg font-bold transition-colors border border-amber-200 shadow-sm">Đánh giá ngay</button>}
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      })}
+                      {teachers.length === 0 && (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-slate-400 italic">Chưa có dữ liệu đánh giá nào.</td>
+                          <td colSpan={8} className="px-4 py-8 text-center text-slate-400 italic">Chưa có giáo viên nào trong danh sách.</td>
                         </tr>
                       )}
                     </tbody>
@@ -990,21 +1006,13 @@ export default function UsersManagementPage() {
               <form onSubmit={handleSaveEvaluation} className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Giáo viên:</label>
-                    <select 
-                      value={evaluationForm.teacherId}
-                      onChange={(e) => {
-                        const t = teachers.find(t => t.id === e.target.value);
-                        if (t) {
-                          setEvaluationForm({ ...evaluationForm, teacherId: t.id, teacherName: t.name });
-                        }
-                      }}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:border-amber-400"
-                    >
-                      {teachers.map(t => (
-                        <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
-                      ))}
-                    </select>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Giáo viên được đánh giá:</label>
+                    <input 
+                      type="text" 
+                      value={`${evaluationForm.teacherName} (${evaluationForm.teacherId})`}
+                      disabled
+                      className="w-full p-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-500 focus:outline-none cursor-not-allowed" 
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tháng / Năm:</label>
