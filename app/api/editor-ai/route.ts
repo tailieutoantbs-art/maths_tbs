@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 60; // Allow longer execution time for AI processing
+export const runtime = 'edge'; // Sử dụng Edge Runtime để tránh bị Vercel ngắt kết nối (504 Timeout)
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +20,14 @@ export async function POST(request: NextRequest) {
 
     if (file) {
       const buffer = await file.arrayBuffer();
-      const base64Data = Buffer.from(buffer).toString('base64');
+      // Chuyển đổi an toàn cho Edge Runtime (không dùng Buffer)
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64Data = btoa(binary);
+      
       filePart = {
         inlineData: {
           mimeType: file.type || "application/pdf",
