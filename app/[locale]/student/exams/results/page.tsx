@@ -19,6 +19,7 @@ function ScoreboardPage() {
   const [results, setResults] = useState<ExamResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [classFilter, setClassFilter] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchResults = async () => {
     setLoading(true);
@@ -59,7 +60,11 @@ function ScoreboardPage() {
     let csvContent = "\uFEFF"; 
     csvContent += "STT,Họ và Tên,Lớp,Điểm Số,Thời Gian Nộp Bài\n";
 
-    const dataToExport = classFilter === 'ALL' ? results : results.filter(r => r.studentClass === classFilter);
+    const dataToExport = results.filter(r => {
+      const matchClass = classFilter === 'ALL' || r.studentClass === classFilter;
+      const matchSearch = r.studentName.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchClass && matchSearch;
+    });
 
     dataToExport.forEach((r, index) => {
       csvContent += `${index + 1},"${r.studentName}",${r.studentClass},${r.score},${formatSubmissionTime(r.submittedAt)}\n`;
@@ -76,7 +81,11 @@ function ScoreboardPage() {
     document.body.removeChild(link);
   };
 
-  const filteredResults = classFilter === 'ALL' ? results : results.filter(r => r.studentClass === classFilter);
+  const filteredResults = results.filter(r => {
+    const matchClass = classFilter === 'ALL' || r.studentClass === classFilter;
+    const matchSearch = r.studentName.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchClass && matchSearch;
+  });
 
   return (
     <main className="min-h-screen bg-[#E0F2FE] p-4 md:p-8 text-slate-700">
@@ -109,22 +118,35 @@ function ScoreboardPage() {
           </div>
         </div>
 
-        {/* BỘ LỌC ĐIỀU HƯỚNG NHANH */}
-        <div className="flex items-center gap-3 bg-white/40 p-4 rounded-2xl border border-white/60 w-fit shadow-sm">
-          <span className="text-xs font-black text-slate-500 uppercase tracking-wide">Lọc Theo Lớp:</span>
-          <select 
-            value={classFilter} 
-            onChange={(e) => setClassFilter(e.target.value)}
-            className="p-2 bg-white border border-sky-100 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
-          >
-            <option value="ALL">Tất cả các lớp</option>
-            <option value="10A1">Lớp 10A1</option>
-            <option value="10A2">Lớp 10A2</option>
-            <option value="11A1">Lớp 11A1</option>
-            <option value="11A2">Lớp 11A2</option>
-            <option value="12A1">Lớp 12A1</option>
-            <option value="12A2">Lớp 12A2</option>
-          </select>
+        {/* BỘ LỌC VÀ TÌM KIẾM ĐIỀU HƯỚNG NHANH */}
+        <div className="flex flex-col md:flex-row items-center gap-4 bg-white/40 p-4 rounded-2xl border border-white/60 shadow-sm w-full md:w-auto justify-between">
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <span className="text-xs font-black text-slate-500 uppercase tracking-wide">Tìm Kiếm:</span>
+            <input 
+              type="text"
+              placeholder="Nhập tên học sinh..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="p-2 w-full md:w-64 bg-white border border-sky-100 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-sky-300"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <span className="text-xs font-black text-slate-500 uppercase tracking-wide">Lọc Theo Lớp:</span>
+            <select 
+              value={classFilter} 
+              onChange={(e) => setClassFilter(e.target.value)}
+              className="p-2 w-full md:w-auto bg-white border border-sky-100 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
+            >
+              <option value="ALL">Tất cả các lớp</option>
+              <option value="10A1">Lớp 10A1</option>
+              <option value="10A2">Lớp 10A2</option>
+              <option value="11A1">Lớp 11A1</option>
+              <option value="11A2">Lớp 11A2</option>
+              <option value="12A1">Lớp 12A1</option>
+              <option value="12A2">Lớp 12A2</option>
+            </select>
+          </div>
         </div>
 
         {/* BẢNG ĐIỂM CHI TIẾT */}

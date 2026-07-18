@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { useToast } from '@/components/ToastProvider';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 
 export default function DepartmentPage() {
   const router = useRouter();
@@ -27,14 +29,48 @@ export default function DepartmentPage() {
     showToast('info', 'Đã cập nhật trạng thái nộp hồ sơ!');
   };
 
-  // Xử lý đồng bộ dữ liệu
-  const handleSyncToSheets = () => {
+  const GOOGLE_SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbwlqxlitf4BrjFN2nIYs4ywXmVGi0EtWCSoWJUgwyFXnJFPXWXiVmIgWRf5KKBZDpluug/exec';
+
+  const handleSyncToSheets = async () => {
     setIsSyncing(true);
-    // Giả lập thời gian call API đồng bộ dữ liệu (2 giây)
-    setTimeout(() => {
+    try {
+      // 1. Kéo toàn bộ dữ liệu điểm từ Firebase
+      const q = query(collection(db, 'exam_results'), orderBy('submittedAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const results: any[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        results.push({
+          studentName: data.studentName || '',
+          studentClass: data.studentClass || '',
+          score: data.score || 0,
+          submittedAt: data.submittedAt ? data.submittedAt.toDate().toLocaleString('vi-VN') : ''
+        });
+      });
+
+      // 2. Đẩy dữ liệu qua Google Apps Script (Webhook)
+      const response = await fetch(GOOGLE_SHEET_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'sync_results',
+          data: results
+        }),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        showToast('success', 'Đã đồng bộ điểm số lên Google Sheets thành công! 🚀');
+      } else {
+        showToast('error', result.message || 'Hệ thống báo lỗi khi đồng bộ.');
+      }
+    } catch (error) {
+      console.error(error);
+      showToast('error', 'Cổng kết nối Google Sheets hiện đang bận. Vui lòng thử lại!');
+    } finally {
       setIsSyncing(false);
-      showToast('success', 'Đã đồng bộ điểm số và bài nộp lên Google Sheets thành công! 🚀');
-    }, 2000);
+    }
   };
 
   return (
