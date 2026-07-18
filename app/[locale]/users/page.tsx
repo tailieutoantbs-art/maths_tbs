@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { useToast } from '@/components/ToastProvider';
 import * as XLSX from 'xlsx';
+import { db } from '@/lib/firebase';
+import { collection, doc, getDocs, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 export default function UsersManagementPage() {
   const router = useRouter();
@@ -16,43 +18,35 @@ export default function UsersManagementPage() {
   const [teachers, setTeachers] = useState<any[]>([]);
   const [evaluations, setEvaluations] = useState<any[]>([]);
   const [isClient, setIsClient] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  // Load from localStorage on mount
+  // Load from Firebase on mount
   React.useEffect(() => {
     setIsClient(true);
-    const savedStudents = localStorage.getItem('tbs_students');
-    const savedTeachers = localStorage.getItem('tbs_teachers');
-    
-    if (savedStudents) {
+    const session = localStorage.getItem('teacher_session');
+    if (session) {
       try {
-        const parsed = JSON.parse(savedStudents);
-        const unique = Array.from(new Map(parsed.map((item: any) => [item.id, item])).values());
-        setStudents(unique as any[]);
-      } catch(e) {
-        setStudents([]);
-      }
-    } else {
-      setStudents([
-        { id: 'HS26001', name: 'Nguyễn Hải Đăng', gender: 'Nam', dob: '15/08/2010', class: '10A1', defaultPass: 'Tbs@10a1', passChanged: true, status: 'Đang học', note: 'Lớp phó học tập' },
-        { id: 'HS26002', name: 'Trần Thị Thu Hà', gender: 'Nữ', dob: '22/11/2010', class: '10A1', defaultPass: 'Tbs@10a1', passChanged: false, status: 'Đang học', note: '' },
-        { id: 'HS25045', name: 'Lê Hoàng Bách', gender: 'Nam', dob: '05/02/2009', class: '11A2', defaultPass: 'Tbs@11a2', passChanged: true, status: 'Đang học', note: 'Đội tuyển HSG' },
-      ]);
+        const parsed = JSON.parse(session);
+        if (parsed.role === 'Admin') {
+          setIsAdmin(true);
+        }
+      } catch (e) {}
     }
 
-    if (savedTeachers) {
+    const loadData = async () => {
       try {
-        const parsed = JSON.parse(savedTeachers);
-        const unique = Array.from(new Map(parsed.map((item: any) => [item.id, item])).values());
-        setTeachers(unique as any[]);
-      } catch(e) {
-        setTeachers([]);
+        const studentsSnap = await getDocs(collection(db, 'students'));
+        const stData = studentsSnap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+        setStudents(stData as any[]);
+
+        const teachersSnap = await getDocs(collection(db, 'teachers'));
+        const tcData = teachersSnap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+        setTeachers(tcData as any[]);
+      } catch (error) {
+        console.error("Lỗi tải dữ liệu:", error);
       }
-    } else {
-      setTeachers([
-        { id: 'GV001', name: 'Thầy Hùng', role: 'Tổ trưởng chuyên môn', contractType: 'Cơ hữu', email: 'hung.tbs@thanhbinh.edu.vn', experience: '15 năm', achievements: 'CSTĐ Cấp Tỉnh, GVG', phone: '090xxxxxxx', status: 'Đang công tác' },
-        { id: 'GV002', name: 'Cô Phạm Mai', role: 'Giáo viên Toán', contractType: 'Thỉnh giảng', email: 'mai.pham@thanhbinh.edu.vn', experience: '5 năm', achievements: 'GVG Cấp Trường', phone: '091xxxxxxx', status: 'Đang công tác' },
-      ]);
-    }
+    };
+    loadData();
 
     const savedEvaluations = localStorage.getItem('tbs_evaluations');
     if (savedEvaluations) {
@@ -71,18 +65,9 @@ export default function UsersManagementPage() {
     }
   }, []);
 
-  // Save to localStorage when changed
-  React.useEffect(() => {
-    if (isClient) {
-      localStorage.setItem('tbs_students', JSON.stringify(students));
-    }
-  }, [students, isClient]);
 
-  React.useEffect(() => {
-    if (isClient) {
-      localStorage.setItem('tbs_teachers', JSON.stringify(teachers));
-    }
-  }, [teachers, isClient]);
+
+
 
   React.useEffect(() => {
     if (isClient) {
@@ -204,6 +189,9 @@ export default function UsersManagementPage() {
               updatedList.sort((a, b) => newStudents.some(s => s.id === a.id) ? -1 : 1);
               return updatedList;
             });
+            for (const s of newStudents) {
+              await setDoc(doc(db, 'students', s.id), s, { merge: true });
+            }
             showToast('success', `Đã nhập và cập nhật dữ liệu học sinh thành công!`);
           } else {
             showToast('error', 'File không đúng định dạng mẫu học sinh!');
@@ -239,6 +227,9 @@ export default function UsersManagementPage() {
               updatedList.sort((a, b) => newTeachers.some(t => t.id === a.id) ? -1 : 1);
               return updatedList;
             });
+            for (const t of newTeachers) {
+              await setDoc(doc(db, 'teachers', t.id), { ...t, defaultPass: 'Tbs@gv2026', passChanged: false }, { merge: true });
+            }
             showToast('success', `Đã nhập và cập nhật dữ liệu giáo viên thành công!`);
           } else {
             showToast('error', 'File không đúng định dạng mẫu giáo viên!');
@@ -254,21 +245,24 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleResetPassword = (studentName: string) => {
+  const handleResetPassword = async (studentId: string, studentName: string) => {
     if (window.confirm(`Thầy/Cô có chắc chắn muốn khôi phục mật khẩu của học sinh ${studentName} về mặc định không?`)) {
+      await updateDoc(doc(db, 'students', studentId), { password: '', passChanged: false });
       showToast('success', `Đã reset mật khẩu cho học sinh ${studentName}!`);
     }
   };
 
-  const handleDeleteStudent = (studentId: string, studentName: string) => {
+  const handleDeleteStudent = async (studentId: string, studentName: string) => {
     if (window.confirm(`Thầy/Cô có chắc chắn muốn xóa học sinh ${studentName} (${studentId}) khỏi danh sách không?`)) {
+      await deleteDoc(doc(db, 'students', studentId));
       setStudents(prev => prev.filter(hs => hs.id !== studentId));
       showToast('success', `Đã xóa học sinh ${studentName} thành công!`);
     }
   };
 
-  const handleDeleteTeacher = (teacherId: string, teacherName: string) => {
+  const handleDeleteTeacher = async (teacherId: string, teacherName: string) => {
     if (window.confirm(`Bạn có chắc chắn muốn xóa giáo viên ${teacherName} (${teacherId}) khỏi danh sách không?`)) {
+      await deleteDoc(doc(db, 'teachers', teacherId));
       setTeachers(prev => prev.filter(gv => gv.id !== teacherId));
       showToast('success', `Đã xóa giáo viên ${teacherName} thành công!`);
     }
@@ -302,7 +296,7 @@ export default function UsersManagementPage() {
     setIsStudentModalOpen(true);
   };
 
-  const handleSaveStudent = (e: React.FormEvent) => {
+  const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingStudentId) {
       setStudents(prev => prev.map(hs => {
@@ -319,7 +313,17 @@ export default function UsersManagementPage() {
         }
         return hs;
       }));
-      showToast('success', 'Đã cập nhật thông tin học sinh!');
+      const updatedStudent = {
+            id: editingStudentId,
+            name: studentForm.name,
+            gender: studentForm.gender,
+            dob: studentForm.dob,
+            class: studentForm.class,
+            note: studentForm.note,
+            status: studentForm.status
+          };
+          await setDoc(doc(db, 'students', editingStudentId), updatedStudent, { merge: true });
+          showToast('success', 'Đã cập nhật thông tin học sinh!');
     } else {
       if (students.some(hs => hs.id === studentForm.id)) {
         showToast('error', 'Mã học sinh đã tồn tại!');
@@ -337,6 +341,7 @@ export default function UsersManagementPage() {
         note: studentForm.note
       };
       setStudents(prev => [...prev, newStudent]);
+      await setDoc(doc(db, 'students', newStudent.id), newStudent);
       showToast('success', 'Đã thêm học sinh mới vào danh sách!');
     }
     setIsStudentModalOpen(false);
@@ -374,7 +379,7 @@ export default function UsersManagementPage() {
     setIsTeacherModalOpen(true);
   };
 
-  const handleSaveTeacher = (e: React.FormEvent) => {
+  const handleSaveTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingTeacherId) {
       setTeachers(prev => prev.map(gv => {
@@ -568,9 +573,9 @@ export default function UsersManagementPage() {
                           </td>
                           <td className="px-4 py-3 text-xs italic">{hs.note}</td>
                           <td className="px-4 py-3 text-center space-x-2">
-                            <button onClick={() => handleOpenEditStudent(hs)} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>
-                            <button onClick={() => handleResetPassword(hs.name)} className="text-xs bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Reset MK</button>
-                            <button onClick={() => handleDeleteStudent(hs.id, hs.name)} className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Xóa</button>
+                            {isAdmin && <button onClick={() => handleOpenEditStudent(hs)} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>}
+                            {isAdmin && <button onClick={() => handleResetPassword(hs.id, hs.name)} className="text-xs bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Reset MK</button>}
+                            {isAdmin && <button onClick={() => handleDeleteStudent(hs.id, hs.name)} className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Xóa</button>}
                           </td>
                         </tr>
                       ))}
@@ -648,9 +653,9 @@ export default function UsersManagementPage() {
                         </div>
 
                         <div className="mt-5 flex gap-2 pt-4 border-t border-slate-100">
-                          <button onClick={() => handleOpenEditTeacher(gv)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors shadow-sm">Sửa</button>
-                          <button onClick={() => handleToggleLockTeacher(gv.id, gv.name, gv.status)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-orange-600 hover:bg-orange-50 hover:border-orange-200 transition-colors shadow-sm">{gv.status === 'Đang công tác' ? 'Khóa' : 'Mở'}</button>
-                          <button onClick={() => handleDeleteTeacher(gv.id, gv.name)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors shadow-sm">Xóa</button>
+                          {isAdmin && <button onClick={() => handleOpenEditTeacher(gv)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors shadow-sm">Sửa</button>}
+                          {isAdmin && <button onClick={() => handleToggleLockTeacher(gv.id, gv.name, gv.status)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-orange-600 hover:bg-orange-50 hover:border-orange-200 transition-colors shadow-sm">{gv.status === 'Đang công tác' ? 'Khóa' : 'Mở'}</button>}
+                          {isAdmin && <button onClick={() => handleDeleteTeacher(gv.id, gv.name)} className="flex-1 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors shadow-sm">Xóa</button>}
                         </div>
                       </div>
                     </div>
@@ -734,10 +739,10 @@ export default function UsersManagementPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center space-x-2">
-                            <button onClick={() => {
+                            {isAdmin && <button onClick={() => {
                               setEvaluationForm(ev);
                               setIsEvaluationModalOpen(true);
-                            }} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>
+                            }} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">Sửa</button>}
                           </td>
                         </tr>
                       ))}

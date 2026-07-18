@@ -70,19 +70,16 @@ export default function StudentLoginPage() {
     setIsLoading(true);
     
     try {
-      const savedStudents = localStorage.getItem('tbs_students');
-      let studentsList: any[] = [];
-      if (savedStudents) {
-        studentsList = JSON.parse(savedStudents);
-      }
+      const studentRef = doc(db, 'students', studentId.toUpperCase());
+      const studentSnap = await getDoc(studentRef);
       
-      const st = studentsList.find(s => s.id.toUpperCase() === studentId.toUpperCase());
-      
-      if (!st) {
+      if (!studentSnap.exists()) {
         alert('Mã học sinh không tồn tại trên hệ thống!');
         setIsLoading(false);
         return;
       }
+      
+      const st = { id: studentSnap.id, ...studentSnap.data() } as any;
       
       // Check password
       const isPassCorrect = st.passChanged ? st.password === password : st.defaultPass === password;
@@ -119,17 +116,13 @@ export default function StudentLoginPage() {
     
     setIsLoading(true);
     try {
-      const savedStudents = localStorage.getItem('tbs_students');
-      if (savedStudents) {
-        const studentsList = JSON.parse(savedStudents);
-        const updatedList = studentsList.map((s: any) => {
-          if (s.id === foundStudent.id) {
-            return { ...s, password: newPassword, passChanged: true };
-          }
-          return s;
-        });
-        localStorage.setItem('tbs_students', JSON.stringify(updatedList));
-      }
+      const studentRef = doc(db, 'students', foundStudent.id);
+      
+      // Update password on Firebase
+      await setDoc(studentRef, {
+        password: newPassword,
+        passChanged: true
+      }, { merge: true });
       
       await performFirebaseInit({...foundStudent, password: newPassword, passChanged: true});
       

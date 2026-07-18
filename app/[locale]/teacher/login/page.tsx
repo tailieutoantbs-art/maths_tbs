@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from '@/i18n/routing';
-import { auth } from '@/lib/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/components/ToastProvider';
 
 export default function TeacherLoginPage() {
@@ -19,19 +19,56 @@ export default function TeacherLoginPage() {
     setIsLoading(true);
 
     try {
-      // Kết nối trực tiếp với hệ thống xác thực của Firebase
-      await signInWithEmailAndPassword(auth, email, password);
-      showToast('success', 'Xác thực thành công! Đang chuyển hướng...');
+      // Hardcode Admin fallback để phòng trường hợp DB trống
+      if (email === 'admin@thanhbinh.edu.vn' && password === 'Admin@123') {
+        localStorage.setItem('teacher_session', JSON.stringify({
+          id: 'ADMIN',
+          name: 'Super Admin',
+          email: 'admin@thanhbinh.edu.vn',
+          role: 'Admin'
+        }));
+        showToast('success', 'Đăng nhập tài khoản Admin mặc định thành công!');
+        router.push('/dashboard');
+        return;
+      }
+
+      // Kết nối với Firestore collection 'teachers'
+      const q = query(collection(db, 'teachers'), where('email', '==', email.trim()));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        showToast('error', 'Tài khoản không tồn tại trong hệ thống!');
+        setIsLoading(false);
+        return;
+      }
+
+      let validUser: any = null;
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.password === password || data.defaultPass === password) {
+          validUser = { id: doc.id, ...data };
+        }
+      });
+
+      if (!validUser) {
+        showToast('error', 'Sai mật mã truy cập!');
+        setIsLoading(false);
+        return;
+      }
+
+      // Xác thực thành công
+      localStorage.setItem('teacher_session', JSON.stringify({
+        id: validUser.id,
+        name: validUser.name,
+        email: validUser.email,
+        role: validUser.role || 'Giáo viên'
+      }));
+
+      showToast('success', `Chào mừng ${validUser.name}! Đang chuyển hướng...`);
       router.push('/dashboard');
     } catch (error: any) {
-      // Xử lý các mã lỗi thường gặp
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        showToast('error', 'Tài khoản không tồn tại hoặc sai thông tin!');
-      } else if (error.code === 'auth/wrong-password') {
-        showToast('error', 'Sai mật mã truy cập!');
-      } else {
-        showToast('error', 'Lỗi kết nối đến máy chủ bảo mật.');
-      }
+      console.error(error);
+      showToast('error', 'Lỗi kết nối đến máy chủ dữ liệu.');
     } finally {
       setIsLoading(false);
     }
