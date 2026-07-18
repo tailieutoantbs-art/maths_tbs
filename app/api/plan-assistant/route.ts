@@ -3,7 +3,7 @@ import { APPENDIX_PROMPTS, SYSTEM_PROMPT } from '@/lib/prompts-appendix';
 
 export async function POST(request: Request) {
   try {
-    const { planType, inputData, referenceSource } = await request.json();
+    const { planType, inputData, referenceSource, locale } = await request.json();
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -14,6 +14,10 @@ export async function POST(request: Request) {
     if (!selectedPrompt) {
       return NextResponse.json({ error: 'Loại kế hoạch không hợp lệ' }, { status: 400 });
     }
+
+    const languageInstruction = locale === 'en' 
+      ? "TUYỆT ĐỐI phản hồi toàn bộ bản kết quả bằng TIẾNG ANH (ENGLISH). Dịch thuật chuẩn xác các thuật ngữ Toán học giáo dục. DỊCH TOÀN BỘ CÁC TIÊU ĐỀ, KHUNG BẢNG VÀ NỘI DUNG MẪU TỪ TIẾNG VIỆT TRONG CẤU TRÚC SANG TIẾNG ANH."
+      : "VUI LÒNG phản hồi toàn bộ nội dung bằng TIẾNG VIỆT (VIETNAMESE).";
 
     // Thiết lập lệnh ép AI phải bám sát Nguồn dữ liệu (Grounding)
     const fullPrompt = `
@@ -33,20 +37,36 @@ export async function POST(request: Request) {
     LỆNH KIỂM SOÁT TÍNH ĐÚNG ĐẮN (QUAN TRỌNG):
     1. TUYỆT ĐỐI chỉ sử dụng kiến thức, thuật ngữ, và định hướng từ "NGUỒN DỮ LIỆU THAM CHIẾU CHUẨN" bên trên để biên soạn nội dung. KHÔNG ĐƯỢC TỰ BỊA ĐẶT HOẶC LẤY KIẾN THỨC NGOÀI LỀ.
     2. Bắt buộc thêm một dòng ở cuối cùng của văn bản xuất ra: "📌 Nguồn dữ liệu đối chiếu: [Ghi tóm tắt tên Nguồn tham chiếu hoặc 'NotebookLM' / 'SGK' dựa trên dữ liệu người dùng nhập]".
+    3. YÊU CẦU NGÔN NGỮ: ${languageInstruction}
     `;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: fullPrompt }] }],
-        })
-      }
-    );
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro'];
+    let data: any;
 
-    const data = await response.json();
+    for (const model of modelsToTry) {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: fullPrompt }] }],
+          })
+        }
+      );
+      data = await response.json();
+
+      if (!data.error || (data.error.code !== 503 && !data.error.message?.includes('high demand'))) {
+        break; // Success or unrecoverable error
+      }
+      console.warn(`Model ${model} is overloaded, trying fallback...`);
+    }
+    
+    if (data.error) {
+      console.error("Gemini API Error:", data.error);
+      return NextResponse.json({ error: data.error.message || 'Lỗi từ Gemini API' }, { status: 500 });
+    }
+
     const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!aiText) {

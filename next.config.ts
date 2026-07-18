@@ -1,3 +1,7 @@
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const withNextIntl = createNextIntlPlugin();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // 1. Lệnh xuất toàn bộ dự án thành thư mục tĩnh để đưa lên ByetHost
@@ -16,4 +20,4 @@ const nextConfig = {
   }
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

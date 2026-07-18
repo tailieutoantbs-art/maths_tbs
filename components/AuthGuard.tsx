@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -11,6 +12,7 @@ interface AuthGuardProps {
 
 export default function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
+  const locale = useLocale();
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -22,7 +24,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       } else {
         setIsAuthenticated(false);
         // Nếu không có phiên đăng nhập hợp lệ, đẩy ngay ra trang login giáo viên
-        router.push('/teacher/login');
+        router.push(`/${locale}/teacher/login`);
       }
       setIsLoading(false);
     });

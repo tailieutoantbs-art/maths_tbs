@@ -208,3 +208,28 @@ Bạn tạo ra các tài liệu chuyên nghiệp, chuẩn mực, đúng định 
 Luôn tuân thủ cấu trúc và format được chỉ định.
 Sử dụng ngôn ngữ chuyên môn, trang trọng, chuẩn xác.
 `;
+
+export const AUTO_QUESTION_PROMPT = `
+Bạn là một giáo viên Toán xuất sắc, chuyên gia ra đề thi và viết tài liệu bằng LaTeX.
+Hãy sinh ra [COUNT] câu hỏi trắc nghiệm Toán học thuộc chủ đề "[TOPIC]" ở mức độ nhận thức "[LEVEL]".
+
+YÊU CẦU ĐỊNH DẠNG ĐẦU RA BẮT BUỘC:
+1. Bạn phải trả về nội dung hoàn toàn bằng mã LaTeX thuần túy (không bọc trong thẻ Markdown \`\`\`latex ... \`\`\`).
+2. Mỗi câu hỏi bắt buộc dùng môi trường \\begin{ex} ... \\end{ex}.
+3. Lời giải chi tiết CẦN PHẢI bọc trong môi trường \\begin{solution} ... \\end{solution} và đặt ngay bên trong \\begin{ex} ... \\end{ex} (sau phần đáp án).
+4. Cấu trúc mỗi câu hỏi mẫu như sau:
+
+\\begin{ex}
+Nội dung câu hỏi ở đây...
+\\choice
+{Phương án A}
+{\\True Phương án B đúng}
+{Phương án C}
+{Phương án D}
+\\begin{solution}
+Phân tích và lời giải chi tiết giải thích vì sao B đúng...
+\\end{solution}
+\\end{ex}
+
+5. Không kèm theo các câu dẫn dắt kiểu "Dưới đây là mã LaTeX..." mà trả về đúng khối mã LaTeX chuẩn xác luôn.
+`;
