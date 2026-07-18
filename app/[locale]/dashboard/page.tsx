@@ -145,7 +145,14 @@ function TeacherDashboard() {
             </div>
 
             <button 
-              onClick={() => router.push('/')}
+              onClick={() => {
+                localStorage.removeItem('teacher_session');
+                // Nếu có dùng Firebase auth cho teacher ở đâu đó thì đăng xuất luôn
+                import('@/lib/firebase').then(({ auth }) => {
+                  import('firebase/auth').then(({ signOut }) => signOut(auth));
+                });
+                router.push('/');
+              }}
               className={`px-6 py-2.5 font-bold text-sm uppercase rounded-xl transition-all border backdrop-blur-md ${theme.btnLogout}`}
             >
               Đăng xuất 🚪

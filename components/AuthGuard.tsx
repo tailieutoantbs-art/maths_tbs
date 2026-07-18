@@ -17,21 +17,29 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Lắng nghe trạng thái đăng nhập thời gian thực từ Firebase Auth
+    // Kiểm tra session lưu trong trình duyệt trước (dành cho luồng đăng nhập Firestore custom)
+    const session = localStorage.getItem('teacher_session');
+    if (session) {
+      setIsAuthenticated(true);
+      setIsLoading(false);
+      return;
+    }
+
+    // Lắng nghe trạng thái đăng nhập thời gian thực từ Firebase Auth (dành cho luồng đăng nhập auth mặc định)
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
-        // Nếu không có phiên đăng nhập hợp lệ, đẩy ngay ra trang login giáo viên
-        router.push(`/${locale}/teacher/login`);
+        // Nếu không có phiên đăng nhập hợp lệ, đẩy ngay ra trang login dùng chung
+        router.push(`/${locale}/login`);
       }
       setIsLoading(false);
     });
 
     // Hủy lắng nghe khi component unmount để tránh rò rỉ bộ nhớ
     return () => unsubscribe();
-  }, [router]);
+  }, [router, locale]);
 
   // GIAO DIỆN CHỜ TRONG KHI KIỂM TRA QUYỀN TRUY CẬP
   if (isLoading) {

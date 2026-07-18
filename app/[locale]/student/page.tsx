@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import StudentGuard from '@/components/StudentGuard';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
@@ -15,6 +16,7 @@ interface StudentLeaderboard {
 }
 
 export default function StudentDashboard() {
+  const router = useRouter();
   const [currentStudent, setCurrentStudent] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<StudentLeaderboard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +90,17 @@ export default function StudentDashboard() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">
               <div className="bg-blue-500 h-3 rounded-full transition-all duration-1000" style={{ width: `${myProgress}%` }}></div>
+            </div>
+            <div className="flex justify-end mt-2">
+              <button 
+                onClick={() => {
+                  localStorage.removeItem('student_session');
+                  router.push('/');
+                }}
+                className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline transition-colors px-2 py-1"
+              >
+                Đăng xuất 🚪
+              </button>
             </div>
           </div>
         </div>
