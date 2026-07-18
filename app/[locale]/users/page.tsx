@@ -382,22 +382,26 @@ export default function UsersManagementPage() {
   const handleSaveTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingTeacherId) {
+      const updatedTeacher = {
+        name: teacherForm.name,
+        role: teacherForm.role,
+        contractType: teacherForm.contractType,
+        email: teacherForm.email,
+        phone: teacherForm.phone,
+        experience: teacherForm.experience,
+        achievements: teacherForm.achievements,
+        status: teacherForm.status
+      };
+      
       setTeachers(prev => prev.map(gv => {
         if (gv.id === editingTeacherId) {
-          return {
-            ...gv,
-            name: teacherForm.name,
-            role: teacherForm.role,
-            contractType: teacherForm.contractType,
-            email: teacherForm.email,
-            phone: teacherForm.phone,
-            experience: teacherForm.experience,
-            achievements: teacherForm.achievements,
-            status: teacherForm.status
-          };
+          return { ...gv, ...updatedTeacher };
         }
         return gv;
       }));
+      
+      // Save to Firebase
+      await setDoc(doc(db, 'teachers', editingTeacherId), updatedTeacher, { merge: true });
       showToast('success', 'Đã cập nhật hồ sơ giáo viên!');
     } else {
       if (teachers.some(gv => gv.id === teacherForm.id)) {
@@ -413,9 +417,14 @@ export default function UsersManagementPage() {
         phone: teacherForm.phone,
         experience: teacherForm.experience,
         achievements: teacherForm.achievements,
-        status: teacherForm.status
+        status: teacherForm.status,
+        defaultPass: 'Tbs@gv2026',
+        passChanged: false
       };
       setTeachers(prev => [...prev, newTeacher]);
+      
+      // Save to Firebase
+      await setDoc(doc(db, 'teachers', newTeacher.id), newTeacher);
       showToast('success', 'Đã lưu hồ sơ giáo viên mới!');
     }
     setIsTeacherModalOpen(false);
@@ -435,19 +444,20 @@ export default function UsersManagementPage() {
     setIsEvaluationModalOpen(false);
   };
 
-  const handleToggleLockTeacher = (id: string, name: string, currentStatus: string) => {
+  const handleToggleLockTeacher = async (id: string, name: string, currentStatus: string) => {
     const isLocking = currentStatus === 'Đang công tác';
     const actionText = isLocking ? 'khóa tài khoản' : 'mở khóa tài khoản';
     if (window.confirm(`Thầy/Cô có chắc chắn muốn ${actionText} của giáo viên ${name} không?`)) {
+      const newStatus = isLocking ? 'Đã khóa' : 'Đang công tác';
       setTeachers(prev => prev.map(gv => {
         if (gv.id === id) {
-          return {
-            ...gv,
-            status: isLocking ? 'Đã khóa' : 'Đang công tác'
-          };
+          return { ...gv, status: newStatus };
         }
         return gv;
       }));
+      
+      // Save to Firebase
+      await updateDoc(doc(db, 'teachers', id), { status: newStatus });
       showToast('success', `Đã ${isLocking ? 'khóa' : 'mở khóa'} tài khoản giáo viên ${name}!`);
     }
   };
