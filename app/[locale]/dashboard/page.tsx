@@ -170,7 +170,7 @@ function TeacherDashboard() {
              <h3 className={`text-lg font-black ${theme.textMain} mb-5 flex items-center gap-3 border-b-2 ${theme.sectionBorder} pb-3`}>
                🤖 TRUNG TÂM TRỢ LÝ AI & BIÊN SOẠN
              </h3>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 <Link href="/ai-assistant" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border transition-all duration-300 hover:-translate-y-2 group`}>
                   <div className={`text-5xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>🧠</div>
                   <h4 className={`font-black ${theme.textMain} text-xl mb-2`}>Trợ lý AI Năng Lực Số</h4>
@@ -188,6 +188,12 @@ function TeacherDashboard() {
                   <h4 className={`font-black ${theme.textMain} text-xl mb-2`}>Trình Biên Soạn TBS</h4>
                   <p className={`text-sm ${theme.textSub} font-medium leading-relaxed`}>Không gian soạn thảo văn bản Toán học độc lập, kết xuất file chuẩn Word và LaTeX.</p>
                 </Link>
+
+                <Link href="/teacher/interactive-studio" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border transition-all duration-300 hover:-translate-y-2 group`}>
+                  <div className={`text-5xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>✨</div>
+                  <h4 className={`font-black ${theme.textMain} text-xl mb-2`}>Interactive Studio</h4>
+                  <p className={`text-sm ${theme.textSub} font-medium leading-relaxed`}>AI thiết kế tự động các mini-game và bài học tương tác trực tiếp.</p>
+                </Link>
              </div>
           </div>
 
@@ -196,7 +202,7 @@ function TeacherDashboard() {
              <h3 className={`text-lg font-black ${theme.textMain} mb-5 flex items-center gap-3 border-b-2 ${theme.sectionBorder} pb-3 mt-10`}>
                📚 QUẢN LÝ CHUYÊN MÔN & NGÂN HÀNG ĐỀ
              </h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 <Link href="/teacher/news-editor" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border transition-all duration-300 hover:-translate-y-2 group`}>
                   <div className={`text-4xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>📢</div>
                   <h4 className={`font-black ${theme.textMain} text-lg mb-2`}>Cổng Thông Tin</h4>
@@ -220,11 +226,29 @@ function TeacherDashboard() {
                   <h4 className={`font-black ${theme.textMain} text-lg mb-2`}>Ngân Hàng Đề V2</h4>
                   <p className={`text-xs ${theme.textSub} font-medium leading-relaxed`}>Tạo câu hỏi chuẩn JSON, quản lý đồ thị và đóng gói phôi đề kiểm tra.</p>
                 </Link>
+                
+                <Link href="/teacher/bank" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border transition-all duration-300 hover:-translate-y-2 group`}>
+                  <div className={`text-4xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>🤖</div>
+                  <h4 className={`font-black ${theme.textMain} text-lg mb-2`}>Ngân Hàng Đề AI</h4>
+                  <p className={`text-xs ${theme.textSub} font-medium leading-relaxed`}>Sinh câu hỏi tự động bằng AI và khởi tạo mã đấu trường trực tuyến.</p>
+                </Link>
 
                 <Link href="/documents" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border transition-all duration-300 hover:-translate-y-2 group`}>
                   <div className={`text-4xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>📁</div>
                   <h4 className={`font-black ${theme.textMain} text-lg mb-2`}>Kho Tài Liệu</h4>
                   <p className={`text-xs ${theme.textSub} font-medium leading-relaxed`}>Hệ thống lưu trữ chuyên đề, đề cương dùng chung cho toàn bộ giáo viên.</p>
+                </Link>
+
+                <Link href="/department/lectures" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border transition-all duration-300 hover:-translate-y-2 group`}>
+                  <div className={`text-4xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>📽️</div>
+                  <h4 className={`font-black ${theme.textMain} text-lg mb-2`}>Kho Bài Giảng</h4>
+                  <p className={`text-xs ${theme.textSub} font-medium leading-relaxed`}>Quản trị bài giảng trực tuyến, soạn thảo đa phương tiện và xuất bản.</p>
+                </Link>
+
+                <Link href="/teacher/dashboard" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border transition-all duration-300 hover:-translate-y-2 group`}>
+                  <div className={`text-4xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>📈</div>
+                  <h4 className={`font-black ${theme.textMain} text-lg mb-2`}>Thống Kê Học Tập</h4>
+                  <p className={`text-xs ${theme.textSub} font-medium leading-relaxed`}>Báo cáo điểm số, danh sách học sinh theo lớp và tổng hợp kết quả kiểm tra.</p>
                 </Link>
              </div>
           </div>

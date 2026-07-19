@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { useToast } from '@/components/ToastProvider';
 import { useLocale } from 'next-intl';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import 'katex/dist/katex.min.css';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -14,9 +16,9 @@ import pptxgen from 'pptxgenjs';
 import dynamic from 'next/dynamic';
 import Script from 'next/script';
 import DrawingModal, { DrawingType } from '@/components/DrawingModal';
-const TikZ = dynamic(() => import('react-tikzjax'), { 
+const TikZ = dynamic(() => import('@/components/TikzRenderer'), { 
   ssr: false, 
-  loading: () => <p className="text-sm text-indigo-500 italic text-center p-4">Đang vẽ hình TikZ...</p> 
+  loading: () => <p className="text-sm text-indigo-500 italic text-center p-4">Đang chuẩn bị vẽ hình...</p> 
 });
 
 export default function MathEditorWorkspace() {
@@ -232,6 +234,30 @@ export default function MathEditorWorkspace() {
     }
   };
 
+  const handleSave = async () => {
+    if (!content.trim()) {
+      showToast('warning', 'Chưa có nội dung để lưu!');
+      return;
+    }
+    const title = window.prompt("Vui lòng nhập tiêu đề bài giảng:");
+    if (!title) return;
+    
+    showToast('info', 'Đang lưu bài giảng...');
+    try {
+      await addDoc(collection(db, 'lectures'), {
+        title,
+        content,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      showToast('success', 'Đã lưu bài giảng thành công!');
+      router.push('/department/lectures');
+    } catch (error: any) {
+      console.error(error);
+      showToast('error', 'Lỗi khi lưu bài giảng.');
+    }
+  };
+
   return (
     <AuthGuard>
       {/* 
@@ -278,6 +304,13 @@ export default function MathEditorWorkspace() {
                 <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform ${studentMode ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
+
+            <button 
+              onClick={handleSave}
+              className="px-4 py-2 bg-blue-50 text-blue-700 font-bold text-xs uppercase rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2"
+            >
+              💾 Lưu
+            </button>
 
             <div className="relative">
               <button 
@@ -449,6 +482,14 @@ export default function MathEditorWorkspace() {
                                     <p className="text-sm text-indigo-500 italic text-center p-4">Đang tải công cụ vẽ hình...</p>
                                   )}
                                 </div>
+                              );
+                            }
+                            if (!inline && match && match[1] === 'svg') {
+                              return (
+                                <div 
+                                  className="flex justify-center my-6 p-4 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+                                  dangerouslySetInnerHTML={{ __html: String(children).replace(/\n$/, '') }}
+                                />
                               );
                             }
                             return <code className={className} {...props}>{children}</code>;
