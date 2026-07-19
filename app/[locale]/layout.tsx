@@ -5,6 +5,7 @@ import { ToastProvider } from '@/components/ToastProvider';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { ThemeProvider } from "@/components/ThemeProvider";
+import Script from "next/script";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,7 +28,6 @@ export default async function RootLayout({
     <html lang={locale} suppressHydrationWarning>
       <head>
         <link rel="stylesheet" type="text/css" href="https://tikzjax.com/v1/fonts.css" />
-        <script src="https://tikzjax.com/v1/tikzjax.js"></script>
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <NextIntlClientProvider messages={messages}>

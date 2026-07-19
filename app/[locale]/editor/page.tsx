@@ -13,6 +13,7 @@ import rehypeRaw from 'rehype-raw';
 import pptxgen from 'pptxgenjs';
 import dynamic from 'next/dynamic';
 import Script from 'next/script';
+import DrawingModal, { DrawingType } from '@/components/DrawingModal';
 const TikZ = dynamic(() => import('react-tikzjax'), { 
   ssr: false, 
   loading: () => <p className="text-sm text-indigo-500 italic text-center p-4">Đang vẽ hình TikZ...</p> 
@@ -39,10 +40,81 @@ export default function MathEditorWorkspace() {
   // TikZJax Load State
   const [tikzLoaded, setTikzLoaded] = useState(false);
 
+  // Drawing Modal State
+  const [drawingModalOpen, setDrawingModalOpen] = useState(false);
+  const [drawingType, setDrawingType] = useState<DrawingType>('excalidraw');
+
+  // Format State
+  const [isFormatting, setIsFormatting] = useState(false);
+
+  const openDrawingModal = (type: DrawingType) => {
+    setDrawingType(type);
+    setDrawingModalOpen(true);
+  };
+
+  const handleInsertDrawing = (base64Data: string) => {
+    const textToInsert = `\n\n![Hình vẽ trực quan](${base64Data})\n\n`;
+    
+    if (textareaRef.current) {
+      const start = textareaRef.current.selectionStart;
+      const end = textareaRef.current.selectionEnd;
+      const newContent = content.substring(0, start) + textToInsert + content.substring(end);
+      setContent(newContent);
+      
+      // Khôi phục vị trí con trỏ sau khi chèn (tùy chọn)
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + textToInsert.length;
+          textareaRef.current.focus();
+        }
+      }, 0);
+    } else {
+      setContent(prev => prev + textToInsert);
+    }
+    setDrawingModalOpen(false);
+    showToast('success', 'Đã chèn hình vẽ vào bài giảng');
+  };
+
+  const handleFormat = async () => {
+    if (!content.trim()) {
+      showToast('warning', 'Không có nội dung để chuẩn hóa!');
+      return;
+    }
+
+    setIsFormatting(true);
+    showToast('info', 'Đang phân tích và chuẩn hóa định dạng...');
+
+    try {
+      const response = await fetch('/api/format-lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Lỗi từ máy chủ AI');
+      }
+
+      const normalizedText = data.text ? data.text.normalize('NFC') : '';
+      setContent(normalizedText);
+      showToast('success', 'Đã chuẩn hóa định dạng thành công!');
+    } catch (error: any) {
+      console.error(error);
+      showToast('error', error.message || 'Lỗi khi chuẩn hóa.');
+    } finally {
+      setIsFormatting(false);
+    }
+  };
+
   React.useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).process_tikz) {
       setTikzLoaded(true);
     }
+    // Fallback if onLoad fails or script is cached
+    const timer = setTimeout(() => setTikzLoaded(true), 1500);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleGenerate = async () => {
@@ -332,11 +404,22 @@ export default function MathEditorWorkspace() {
                 <div className={`flex-1 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print-hide ${activeView === 'edit' ? 'max-w-4xl mx-auto w-full' : ''}`}>
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex justify-between items-center">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mã nguồn (Markdown & LaTeX)</span>
+                    <div className="flex gap-2">
+                      <button onClick={() => openDrawingModal('excalidraw')} className="text-xs px-3 py-1 bg-white border border-slate-200 rounded-md hover:bg-slate-100 font-medium flex items-center gap-1 shadow-sm text-slate-700">
+                        ✍️ Bảng trắng
+                      </button>
+                      <button onClick={() => openDrawingModal('geogebra')} className="text-xs px-3 py-1 bg-white border border-slate-200 rounded-md hover:bg-slate-100 font-medium flex items-center gap-1 shadow-sm text-slate-700">
+                        📐 GeoGebra
+                      </button>
+                      <button onClick={handleFormat} disabled={isFormatting} className="text-xs px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-md hover:bg-indigo-100 font-medium flex items-center gap-1 shadow-sm disabled:opacity-50 transition-colors">
+                        {isFormatting ? '⏳ Đang xử lý...' : '✨ Chuẩn hóa'}
+                      </button>
+                    </div>
                   </div>
                   <textarea
                     ref={textareaRef}
                     value={content}
-                    onChange={(e) => setContent(e.target.value)}
+                    onChange={(e) => setContent(e.target.value.normalize('NFC'))}
                     placeholder="AI sẽ sinh ra nội dung Markdown tại đây..."
                     className="flex-1 w-full p-6 text-sm font-mono text-slate-700 bg-transparent focus:outline-none resize-none leading-relaxed"
                   />
@@ -372,7 +455,7 @@ export default function MathEditorWorkspace() {
                           }
                         }}
                       >
-                        {content}
+                        {content.normalize('NFC')}
                       </ReactMarkdown>
                     ) : (
                       <div className="h-full flex items-center justify-center text-slate-300 italic text-sm">
@@ -386,6 +469,13 @@ export default function MathEditorWorkspace() {
             </div>
           </div>
         </div>
+
+        <DrawingModal 
+          isOpen={drawingModalOpen} 
+          type={drawingType}
+          onSave={handleInsertDrawing}
+          onClose={() => setDrawingModalOpen(false)}
+        />
 
       </main>
     </AuthGuard>

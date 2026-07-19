@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     3. YÊU CẦU NGÔN NGỮ: ${languageInstruction}
     `;
 
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
     let data: any;
 
     for (const model of modelsToTry) {
@@ -56,7 +56,8 @@ export async function POST(request: Request) {
       );
       data = await response.json();
 
-      if (!data.error || (data.error.code !== 503 && !data.error.message?.includes('high demand'))) {
+      const isRateLimit = data.error?.code === 429 || data.error?.message?.toLowerCase().includes('quota') || data.error?.message?.toLowerCase().includes('exceeded');
+      if (!data.error || (data.error.code !== 503 && !data.error.message?.includes('high demand') && !isRateLimit)) {
         break; // Success or unrecoverable error
       }
       console.warn(`Model ${model} is overloaded, trying fallback...`);
