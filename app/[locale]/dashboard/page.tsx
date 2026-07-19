@@ -223,8 +223,8 @@ function TeacherDashboard() {
 
                 <Link href="/exams" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border transition-all duration-300 hover:-translate-y-2 group`}>
                   <div className={`text-4xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>📝</div>
-                  <h4 className={`font-black ${theme.textMain} text-lg mb-2`}>Ngân Hàng Đề V2</h4>
-                  <p className={`text-xs ${theme.textSub} font-medium leading-relaxed`}>Tạo câu hỏi chuẩn JSON, quản lý đồ thị và đóng gói phôi đề kiểm tra.</p>
+                  <h4 className={`font-black ${theme.textMain} text-lg mb-2`}>Trung Tâm Khảo Thí (CV 7991)</h4>
+                  <p className={`text-xs ${theme.textSub} font-medium leading-relaxed`}>Ma trận bốc đề tự động, quản lý kho V2 và xuất bản đấu trường Live.</p>
                 </Link>
                 
                 <Link href="/teacher/bank" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border transition-all duration-300 hover:-translate-y-2 group`}>

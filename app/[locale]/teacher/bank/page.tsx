@@ -68,7 +68,7 @@ export default function TeacherBankPage() {
       
       await addDoc(collection(db, 'arenas'), {
         pinCode: pin,
-        content: item.result,
+        content: item.result || (item as any).content || (item as any).text || "",
         sourceId: item.id,
         status: 'active',
         createdAt: serverTimestamp(),
