@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     3. YÊU CẦU NGÔN NGỮ: ${languageInstruction}
     `;
 
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro-latest', 'gemini-1.5-flash-latest'];
     let data: any;
 
     for (const model of modelsToTry) {

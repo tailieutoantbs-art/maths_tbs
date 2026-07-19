@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       { text: systemInstruction + '\n\n---\nNỘI DUNG CẦN CHUẨN HÓA:\n\n' + content }
     ];
 
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro-latest', 'gemini-1.5-flash-latest'];
     let data: any;
 
     for (const model of modelsToTry) {
