@@ -12,7 +12,7 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import pptxgen from 'pptxgenjs';
 import dynamic from 'next/dynamic';
-
+import Script from 'next/script';
 const TikZ = dynamic(() => import('react-tikzjax'), { 
   ssr: false, 
   loading: () => <p className="text-sm text-indigo-500 italic text-center p-4">Đang vẽ hình TikZ...</p> 
@@ -35,6 +35,15 @@ export default function MathEditorWorkspace() {
   
   // Student Mode State (Hide solutions in Print)
   const [studentMode, setStudentMode] = useState(false);
+
+  // TikZJax Load State
+  const [tikzLoaded, setTikzLoaded] = useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).process_tikz) {
+      setTikzLoaded(true);
+    }
+  }, []);
 
   const handleGenerate = async () => {
     if (!textInput.trim() && !file) {
@@ -163,6 +172,12 @@ export default function MathEditorWorkspace() {
           ${studentMode ? 'details { display: none !important; }' : 'details { display: block !important; } details summary { font-weight: bold; } details[open] { display: block !important; } details:not([open])::after { content: " (Xem lời giải trong file mềm)"; display: block; }'}
         }
       `}} />
+
+      <Script 
+        src="https://tikzjax.com/v1/tikzjax.js" 
+        onLoad={() => setTikzLoaded(true)} 
+        strategy="afterInteractive"
+      />
 
       <main className="min-h-screen bg-slate-100 flex flex-col font-sans">
         
@@ -345,7 +360,11 @@ export default function MathEditorWorkspace() {
                             if (!inline && match && match[1] === 'tikz') {
                               return (
                                 <div className="flex justify-center my-6 p-4 bg-white rounded-xl shadow-sm border border-slate-200">
-                                  <TikZ content={String(children).replace(/\n$/, '')} />
+                                  {tikzLoaded ? (
+                                    <TikZ content={String(children).replace(/\n$/, '')} />
+                                  ) : (
+                                    <p className="text-sm text-indigo-500 italic text-center p-4">Đang tải công cụ vẽ hình...</p>
+                                  )}
                                 </div>
                               );
                             }

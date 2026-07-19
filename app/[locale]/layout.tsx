@@ -25,6 +25,10 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
+      <head>
+        <link rel="stylesheet" type="text/css" href="https://tikzjax.com/v1/fonts.css" />
+        <script src="https://tikzjax.com/v1/tikzjax.js"></script>
+      </head>
       <body className={inter.className} suppressHydrationWarning>
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
