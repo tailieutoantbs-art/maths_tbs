@@ -164,9 +164,41 @@ function TeacherDashboard() {
         {/* ============ PHÂN HỆ QUẢN TRỊ / GIÁO VIÊN =============== */}
         {/* ========================================================= */}
         <div className="space-y-10">
+
+          {/* NHÓM MỚI: TÍNH NĂNG VỪA NÂNG CẤP (ĐỀ THI 2025) */}
+          <div>
+             <h3 className={`text-lg font-black ${theme.textMain} mb-5 flex items-center gap-3 border-b-2 ${theme.sectionBorder} pb-3`}>
+               🚀 TÍNH NĂNG VỪA NÂNG CẤP (HỆ THỐNG 2025)
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <Link href="/exams/create" className={`bg-gradient-to-br from-rose-500 to-orange-500 text-white p-6 rounded-3xl shadow-lg border border-orange-400 transition-all duration-300 hover:-translate-y-2 group`}>
+                  <div className={`text-5xl mb-4 transition-transform duration-300 group-hover:scale-110 inline-block rounded-full p-1`}>✍️</div>
+                  <h4 className={`font-black text-xl mb-2`}>Tạo Đề Thi 2025</h4>
+                  <p className={`text-sm font-medium leading-relaxed opacity-90`}>Studio soạn thảo đề 3 phần mới, tích hợp Công cụ Cắt ảnh 1-click & MathLive.</p>
+                </Link>
+
+                <Link href="/exams" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-orange-400/50 transition-all duration-300 hover:-translate-y-2 group`}>
+                  <div className={`text-5xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>🗂️</div>
+                  <h4 className={`font-black ${theme.textMain} text-xl mb-2`}>Quản Trị Đề Thi</h4>
+                  <p className={`text-sm ${theme.textSub} font-medium leading-relaxed`}>Quản lý, chỉnh sửa ngân hàng đề thi và cấu hình xuất bản đề trực tuyến.</p>
+                </Link>
+
+                <Link href="/student/exams" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-sky-400/50 transition-all duration-300 hover:-translate-y-2 group`}>
+                  <div className={`text-5xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>👨‍💻</div>
+                  <h4 className={`font-black ${theme.textMain} text-xl mb-2`}>Phần Học Sinh Thi</h4>
+                  <p className={`text-sm ${theme.textSub} font-medium leading-relaxed`}>Sảnh chờ và Phòng thi có tích hợp Anti-Cheat chống gian lận & Bảng nháp điện tử.</p>
+                </Link>
+
+                <Link href="/student/leaderboard" className={`${theme.cardBg} backdrop-blur-xl p-6 rounded-3xl shadow-lg border border-yellow-400/50 transition-all duration-300 hover:-translate-y-2 group`}>
+                  <div className={`text-5xl mb-4 transition-transform duration-300 group-hover:scale-110 ${theme.iconGlow} inline-block rounded-full p-1`}>🏆</div>
+                  <h4 className={`font-black ${theme.textMain} text-xl mb-2`}>Bảng Vàng Danh Dự</h4>
+                  <p className={`text-sm ${theme.textSub} font-medium leading-relaxed`}>Leaderboard toàn trường, vinh danh điểm số theo tuần/tháng.</p>
+                </Link>
+             </div>
+          </div>
           
           {/* NHÓM 1: CÔNG CỤ TRỢ LÝ AI */}
-          <div>
+          <div className="mt-10">
              <h3 className={`text-lg font-black ${theme.textMain} mb-5 flex items-center gap-3 border-b-2 ${theme.sectionBorder} pb-3`}>
                🤖 TRUNG TÂM TRỢ LÝ AI & BIÊN SOẠN
              </h3>

@@ -21,8 +21,9 @@ export default function QuestionBankPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'list' | 'add' | 'matrix'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'add' | 'matrix' | 'exams2025'>('list');
   const [questions, setQuestions] = useState<any[]>([]);
+  const [exams2025, setExams2025] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Form State cho việc thêm câu hỏi mới
@@ -60,8 +61,20 @@ export default function QuestionBankPage() {
     }
   };
 
+  const fetchExams2025 = async () => {
+    try {
+      const q = query(collection(db, 'exams_2025'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setExams2025(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     fetchQuestions();
+    fetchExams2025();
   }, []);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,6 +271,9 @@ export default function QuestionBankPage() {
             <button onClick={() => setActiveTab('list')} className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'list' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>
               📚 Kho Câu Hỏi
             </button>
+            <button onClick={() => setActiveTab('exams2025')} className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'exams2025' ? 'bg-orange-500 text-white shadow-md' : 'text-slate-500 hover:text-orange-500'}`}>
+              📄 Đề Thi AI 2025
+            </button>
             <button onClick={() => setActiveTab('add')} className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'add' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-indigo-600'}`}>
               ✍️ Thêm Câu Hỏi Mới
             </button>
@@ -268,6 +284,51 @@ export default function QuestionBankPage() {
 
           <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 min-h-[600px] relative">
             
+            {/* TAB: DANH SÁCH ĐỀ THI 2025 */}
+            {activeTab === 'exams2025' && (
+              <div className="space-y-4 animate-fadeIn">
+                 <div className="flex justify-between items-end border-b border-slate-100 pb-4 mb-6">
+                  <h2 className="text-lg font-black text-slate-700 uppercase tracking-wider">Danh Sách Đề Thi 2025 (Đã Lưu)</h2>
+                  <span className="text-sm font-bold text-orange-600 bg-orange-50 px-4 py-1.5 rounded-full">Tổng: {exams2025.length} đề</span>
+                </div>
+                {exams2025.length === 0 ? (
+                  <div className="py-20 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-2xl">
+                    <div className="text-4xl mb-4">🗂️</div>
+                    Chưa có đề thi nào được tạo và lưu từ công cụ Tạo Đề 2025.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {exams2025.map((exam) => (
+                      <div key={exam.id} className="bg-white rounded-2xl border-2 border-slate-100 p-6 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-start mb-4">
+                            <span className="px-3 py-1 bg-orange-100 text-orange-700 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                              Đề Thi Toán 2025
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {exam.createdAt ? new Date(exam.createdAt.seconds * 1000).toLocaleDateString('vi-VN') : 'Vừa tạo'}
+                            </span>
+                          </div>
+                          <h3 className="text-lg font-black text-slate-800 mb-2 leading-snug line-clamp-2">
+                            {exam.title || 'Đề thi chưa đặt tên'}
+                          </h3>
+                          <div className="space-y-1 mb-6">
+                            <p className="text-xs font-bold text-slate-500">Phần I: {exam.stats?.mcq || 0} câu</p>
+                            <p className="text-xs font-bold text-slate-500">Phần II: {exam.stats?.tf || 0} câu</p>
+                            <p className="text-xs font-bold text-slate-500">Phần III: {exam.stats?.sa || 0} câu</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 border-t pt-4">
+                          <button onClick={() => alert('Đang phát triển xem chi tiết đề...')} className="flex-1 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 uppercase">Xem / Sửa</button>
+                          <button onClick={() => alert('Đang phát triển tính năng In Đề PDF...')} className="flex-1 py-2 bg-indigo-600 text-white font-black text-xs rounded-xl hover:bg-indigo-700 uppercase shadow-md shadow-indigo-200">In Đề PDF</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* TAB 1: KHO CÂU HỎI */}
             {activeTab === 'list' && (
               <div className="space-y-4 animate-fadeIn">

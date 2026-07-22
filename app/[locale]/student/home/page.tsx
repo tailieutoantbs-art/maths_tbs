@@ -165,13 +165,13 @@ export default function StudentHomePage() {
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{t('examRoomDesc')}</p>
               </div>
             </div>
-            <div className="glass-card p-5 border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-4">
-              <span className="text-3xl">📊</span>
+            <Link href="/student/leaderboard" className="glass-card p-5 border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-4 hover:border-orange-400 dark:hover:border-orange-500 transition-colors group">
+              <span className="text-3xl group-hover:scale-110 transition-transform">📊</span>
               <div>
-                <h5 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{t('reportCardTitle')}</h5>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{t('reportCardDesc')}</p>
+                <h5 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{t('reportCardTitle')} (Bảng Vàng)</h5>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Tra cứu điểm số & Thứ hạng</p>
               </div>
-            </div>
+            </Link>
           </div>
         </div>
 

@@ -7,6 +7,7 @@ import { collection, getDocs, addDoc, query, orderBy, serverTimestamp, getDoc, d
 import 'katex/dist/katex.min.css';
 import { BlockMath } from 'react-katex';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ReactSketchCanvas } from 'react-sketch-canvas';
 
 interface Question {
   id: string;
@@ -37,6 +38,24 @@ export default function StudentExamRoomPage() {
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [finalScore, setFinalScore] = useState(0);
   const [earnedPoints, setEarnedPoints] = useState(0);
+
+  // Anti-Cheat system
+  const [violationCount, setViolationCount] = useState(0);
+  const [showCheatWarning, setShowCheatWarning] = useState(false);
+
+  // Whiteboard system
+  const [showWhiteboard, setShowWhiteboard] = useState(false);
+  const canvasRef = React.useRef<any>(null);
+
+  useEffect(() => {
+    import('mathlive').then((ml) => {
+      if (ml.MathfieldElement) {
+        ml.MathfieldElement.fontsDirectory = '/mathlive-fonts';
+        ml.MathfieldElement.soundsDirectory = '/mathlive-sounds';
+      }
+    }).catch(console.error);
+  }, []);
+
 
   useEffect(() => {
     if (!pin) {
@@ -87,6 +106,29 @@ export default function StudentExamRoomPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, [isStarted, isSubmitted, timeLeft]);
+
+  // Anti-Cheat Event Listener
+  useEffect(() => {
+    if (!isStarted || isSubmitted) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        setViolationCount((prev) => {
+          const newCount = prev + 1;
+          if (newCount >= 3) {
+            handleAutoSubmit(); // Nộp bài luôn
+            alert("Bạn đã vi phạm quy chế thi (Rời khỏi màn hình quá 3 lần). Bài thi của bạn đã tự động nộp.");
+          } else {
+            setShowCheatWarning(true);
+          }
+          return newCount;
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isStarted, isSubmitted]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -325,14 +367,14 @@ export default function StudentExamRoomPage() {
 
                   {q.type === 'SA' && (
                     <div className="pt-2">
-                      <input
-                        type="text"
-                        disabled={isSubmitted}
+                      <math-field
+                        math-virtual-keyboard-policy="manual"
                         value={answers[q.id] || ''}
-                        onChange={(e) => handleSelectAnswer(q.id, e.target.value, 'SA')}
-                        placeholder="Nhập kết quả số hoặc phân số..."
-                        className="w-full md:w-1/2 p-4 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-slate-700 dark:text-slate-300 focus:border-orange-500 focus:outline-none"
-                      />
+                        onInput={(e: any) => {
+                          if (!isSubmitted) handleSelectAnswer(q.id, e.target.value, 'SA');
+                        }}
+                        className={`w-full md:w-1/2 p-4 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-slate-700 dark:text-slate-300 focus:border-orange-500 focus:outline-none ${isSubmitted ? 'opacity-50 pointer-events-none' : ''}`}
+                      ></math-field>
                     </div>
                   )}
                 </motion.div>
@@ -380,6 +422,75 @@ export default function StudentExamRoomPage() {
             </div>
           </div>
         )}
+
+        {/* Cảnh báo Anti-Cheat */}
+        <AnimatePresence>
+          {showCheatWarning && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            >
+              <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-2xl max-w-md text-center border-4 border-rose-500">
+                <span className="text-6xl inline-block mb-4">⚠️</span>
+                <h3 className="text-2xl font-black text-rose-500 uppercase tracking-widest mb-2">Cảnh báo gian lận</h3>
+                <p className="text-slate-600 dark:text-slate-300 font-medium mb-6">
+                  Bạn đã rời khỏi màn hình làm bài! Số lần vi phạm: <span className="font-black text-rose-500 text-lg">{violationCount}/3</span>. 
+                  Nếu vi phạm quá 3 lần, hệ thống sẽ tự động nộp bài!
+                </p>
+                <button 
+                  onClick={() => setShowCheatWarning(false)}
+                  className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl uppercase tracking-widest transition-colors"
+                >
+                  Tôi đã hiểu
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Nút bật/tắt bảng trắng */}
+        {isStarted && !isSubmitted && (
+          <button
+            onClick={() => setShowWhiteboard(!showWhiteboard)}
+            className="fixed bottom-6 right-6 z-40 p-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full shadow-2xl hover:scale-110 transition-transform active:scale-95"
+            title="Bảng Nháp"
+          >
+            <span className="text-2xl">✏️</span>
+          </button>
+        )}
+
+        {/* Bảng nháp (Whiteboard) Overlay */}
+        <AnimatePresence>
+          {showWhiteboard && (
+            <motion.div 
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              className="fixed inset-4 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden"
+            >
+              <div className="flex justify-between items-center p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+                <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">✏️ Bảng Nháp</h3>
+                <div className="flex gap-2">
+                  <button onClick={() => canvasRef.current?.clearCanvas()} className="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-700">Xóa nháp</button>
+                  <button onClick={() => canvasRef.current?.undo()} className="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-700">Hoàn tác (Undo)</button>
+                  <button onClick={() => setShowWhiteboard(false)} className="px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-black uppercase shadow-md hover:bg-rose-600">Đóng Bảng</button>
+                </div>
+              </div>
+              <div className="flex-1 bg-white relative">
+                <ReactSketchCanvas 
+                  ref={canvasRef}
+                  strokeWidth={3}
+                  strokeColor="#f97316"
+                  canvasColor="transparent"
+                  className="w-full h-full"
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     </main>
   );

@@ -23,21 +23,45 @@ export async function POST(request: Request) {
       fullPrompt += "\n\nQUAN TRỌNG: Dịch toàn bộ nội dung câu hỏi và lời giải sang Tiếng Anh. Dịch chuẩn xác các thuật ngữ Toán học.";
     }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    let aiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: fullPrompt }] }],
           generationConfig: {
-             temperature: 0.7,
+             temperature: 0.2,
           }
         })
       }
     );
 
-    const data = await response.json();
+    let data = await aiResponse.json();
+
+    if (!aiResponse.ok && data.error?.message?.includes("high demand")) {
+      console.log("Gemini 2.5 is overloaded, falling back to Gemini 2.0 Flash...");
+      aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: fullPrompt }] }],
+            generationConfig: {
+               temperature: 0.2,
+            }
+          })
+        }
+      );
+      data = await aiResponse.json();
+    }
+
+    if (!aiResponse.ok) {
+      console.error("Google API Error:", data);
+      return NextResponse.json({ error: data.error?.message || 'Lỗi từ Google API' }, { status: 500 });
+    }
+
     let aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!aiText) {

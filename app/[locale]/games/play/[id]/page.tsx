@@ -22,6 +22,15 @@ function PlayerGameInterface() {
   const [studentName, setStudentName] = useState('Chiến binh Ẩn danh');
 
   useEffect(() => {
+    import('mathlive').then((ml) => {
+      if (ml.MathfieldElement) {
+        ml.MathfieldElement.fontsDirectory = '/mathlive-fonts';
+        ml.MathfieldElement.soundsDirectory = '/mathlive-sounds';
+      }
+    }).catch(console.error);
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -274,13 +283,12 @@ function PlayerGameInterface() {
                   {currentQuestion.type === 'SA' && (
                     <div className="space-y-3 text-center">
                       <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Điền đáp số / giá trị tính được:</label>
-                      <input 
-                        type="text"
+                      <math-field 
+                        math-virtual-keyboard-policy="manual"
                         value={currentAnswer || ''}
-                        onChange={(e) => setCurrentAnswer(e.target.value)}
-                        placeholder="Nhập kết quả số..."
+                        onInput={(e: any) => setCurrentAnswer(e.target.value)}
                         className="w-full p-3.5 bg-white border-2 border-slate-200 rounded-xl text-center text-base font-black text-slate-700 focus:outline-none focus:border-sky-400 shadow-inner"
-                      />
+                      ></math-field>
                     </div>
                   )}
 

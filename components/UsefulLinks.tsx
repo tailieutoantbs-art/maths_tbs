@@ -7,6 +7,7 @@ const LINKS = [
   { title: 'Thư viện Học liệu Mở', url: 'https://igiaoduc.vn/', icon: '📚' },
   { title: 'Toán học & Tuổi trẻ', url: '#', icon: '📰' },
   { title: 'Diễn đàn Toán học VN', url: 'https://diendantoanhoc.org/', icon: '🧮' },
+  { title: 'Trang Cá Nhân Thầy Hùng', url: 'https://hungdt.vercel.app/', icon: '👨‍🏫' },
 ];
 
 export default function UsefulLinks() {
