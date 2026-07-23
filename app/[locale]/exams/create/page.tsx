@@ -8,6 +8,10 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import ReactCrop, { Crop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 // Định nghĩa kiểu dữ liệu cho từng loại câu hỏi
 interface Question {
@@ -41,14 +45,20 @@ export default function CreateExamPage() {
   // AI Generation State
   const [showAiModal, setShowAiModal] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [isUploadingImg, setIsUploadingImg] = useState(false);
+  const [aiFile, setAiFile] = useState<File | null>(null);
   const [aiStructure, setAiStructure] = useState<{round: string, count: number, level: string}[]>([
     { round: 'round1', count: 4, level: 'Nhận biết' },
     { round: 'round2', count: 2, level: 'Thông hiểu' },
     { round: 'round3', count: 2, level: 'Vận dụng' }
   ]);
-  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiMode, setAiMode] = useState<'api' | 'manual'>('api');
   const [manualJson, setManualJson] = useState('');
+  
+  // Preview & Paste State
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [isPastingImage, setIsPastingImage] = useState(false);
 
   React.useEffect(() => {
     import('mathlive').then((ml) => {
@@ -104,6 +114,49 @@ export default function CreateExamPage() {
     const updated = [...questions];
     updated[qIndex].tfOptions[optIndex] = { ...updated[qIndex].tfOptions[optIndex], [field]: value };
     setQuestions(updated);
+  };
+
+  const handlePasteImage = async (e: React.ClipboardEvent<HTMLTextAreaElement>, index: number, field: keyof Question) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const blob = items[i].getAsFile();
+        if (!blob) continue;
+
+        setIsPastingImage(true);
+        try {
+          const formData = new FormData();
+          formData.append('file', blob);
+          formData.append('upload_preset', 'cosodulieuhungtbs');
+          const cloudName = 'dlqjlzekw';
+          const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await response.json();
+          if (data.secure_url) {
+            const imgMarkdown = `\n![Hình ảnh](${data.secure_url})\n`;
+            const target = e.target as HTMLTextAreaElement;
+            const start = target.selectionStart;
+            const end = target.selectionEnd;
+            const currentText = (questions[index][field] as string) || '';
+            const newText = currentText.substring(0, start) + imgMarkdown + currentText.substring(end);
+            updateQuestionCommon(index, field, newText);
+          } else {
+            alert('Lỗi tải ảnh lên Cloudinary!');
+          }
+        } catch (err) {
+          console.error(err);
+          alert('Lỗi khi xử lý dán ảnh');
+        } finally {
+          setIsPastingImage(false);
+        }
+        break;
+      }
+    }
   };
 
   // Lưu đề thi lên Firebase
@@ -162,29 +215,62 @@ export default function CreateExamPage() {
     return () => window.removeEventListener('paste', handlePaste);
   }, [showCropModal]);
 
-  const getCroppedImg = () => {
+  const getCroppedImg = async () => {
     if (!completedCrop || !imgRef.current) return;
-    const canvas = document.createElement('canvas');
-    const image = imgRef.current;
-    const scaleX = image.naturalWidth / image.width;
-    const scaleY = image.naturalHeight / image.height;
-    canvas.width = completedCrop.width;
-    canvas.height = completedCrop.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(
-      image,
-      completedCrop.x * scaleX,
-      completedCrop.y * scaleY,
-      completedCrop.width * scaleX,
-      completedCrop.height * scaleY,
-      0,
-      0,
-      completedCrop.width,
-      completedCrop.height
-    );
-    const base64Image = canvas.toDataURL('image/jpeg');
-    setCroppedBase64(`![Hình ảnh đồ thị](${base64Image})`);
+    setIsUploadingImg(true);
+    try {
+      const canvas = document.createElement('canvas');
+      const image = imgRef.current;
+      const scaleX = image.naturalWidth / image.width;
+      const scaleY = image.naturalHeight / image.height;
+      canvas.width = completedCrop.width;
+      canvas.height = completedCrop.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        setIsUploadingImg(false);
+        return;
+      }
+      ctx.drawImage(
+        image,
+        completedCrop.x * scaleX,
+        completedCrop.y * scaleY,
+        completedCrop.width * scaleX,
+        completedCrop.height * scaleY,
+        0,
+        0,
+        completedCrop.width,
+        completedCrop.height
+      );
+      
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+      if (!blob) {
+        setIsUploadingImg(false);
+        alert('Lỗi tạo ảnh');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', blob);
+      formData.append('upload_preset', 'cosodulieuhungtbs');
+
+      const cloudName = 'dlqjlzekw';
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (data.secure_url) {
+        setCroppedBase64(`![Hình ảnh minh họa](${data.secure_url})`);
+      } else {
+        alert('Lỗi khi tải ảnh lên Cloudinary!');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Đã xảy ra lỗi khi upload ảnh');
+    } finally {
+      setIsUploadingImg(false);
+    }
   };
 
   const processAiResult = (dataArray: any[]) => {
@@ -252,14 +338,14 @@ export default function CreateExamPage() {
 
     if(!reqStr) reqStr = "\n\n- Không có yêu cầu cụ thể, vui lòng bóc tách toàn bộ tài liệu nguồn.";
 
-    return `Bạn là một chuyên gia toán học và giáo viên THPT. Hãy sinh ra một bộ đề thi môn Toán theo ĐÚNG cấu trúc năm 2025 từ Yêu cầu/Chủ đề/Nội dung sau:
-NỘI DUNG YÊU CẦU: ${aiTopic}
+    return `Bạn là chuyên gia soạn thảo đề thi Toán THPT. Hãy tạo bộ đề thi bằng định dạng CHUẨN JSON đúng 100% theo cấu trúc mẫu bên dưới:
 
-CẤU TRÚC SỐ LƯỢNG VÀ MỨC ĐỘ YÊU CẦU:
-${reqStr}
+CẤU TRÚC SỐ LƯỢNG VÀ MỨC ĐỘ YÊU CẦU: ${reqStr}
+
+CHÚ Ý QUAN TRỌNG: Hãy trích xuất ĐỦ số lượng câu hỏi đã yêu cầu. Có thể bỏ qua số thứ tự câu trong tài liệu gốc. Nếu tài liệu có nhiều câu hơn số lượng yêu cầu, hãy chọn ngẫu nhiên các câu tốt nhất để lấy đủ số lượng.
 
 QUY TẮC ĐỊNH DẠNG DỮ LIỆU BẮT BUỘC:
-1. TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON MẢNG CÁC CÂU HỎI (Không kèm markdown, không giải thích gì bên ngoài JSON).
+1. TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON MẢNG CÁC CÂU HỎI (đặt trong \`\`\`json ... \`\`\`). Không kèm markdown hay giải thích bên ngoài.
 2. TẤT CẢ công thức Toán học phải chuẩn LaTeX và được bọc trong dấu $...$ hoặc $$...$$. 
 3. CHÚ Ý QUAN TRỌNG: Vì trả về chuỗi JSON, BẮT BUỘC NHÂN ĐÔI DẤU GẠCH CHÉO NGƯỢC (ví dụ: \\\\frac, \\\\log, \\\\sqrt, \\\\mathbb{R}) để JSON.parse không bị lỗi.
 4. Phần "explanation" (Lời giải chi tiết): Trình bày khoa học, ngắt ý rõ ràng bằng \\n\\n.
@@ -293,7 +379,9 @@ CHUẨN ĐẦU RA JSON (Array of objects):
     "correctAnswer": "Đáp án",
     "explanation": "Lời giải chi tiết..."
   }
-]`;
+]
+
+NỘI DUNG/ẢNH CẦN XỬ LÝ:\n${aiTopic}`;
   };
 
   const handleManualAI = () => {
@@ -313,15 +401,44 @@ CHUẨN ĐẦU RA JSON (Array of objects):
     }
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        let encoded = reader.result?.toString().replace(/^data:(.*,)?/, '') || '';
+        if (encoded.length % 4 > 0) encoded += '='.repeat(4 - (encoded.length % 4));
+        resolve(encoded);
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const handleGenerateAI = async () => {
-    if (!aiTopic) return alert('Vui lòng nhập chủ đề!');
+    if (!aiTopic.trim() && !aiFile) return alert('Vui lòng nhập chủ đề hoặc tải file lên!');
     setIsGeneratingAi(true);
+    
+    let fileData = '';
+    let mimeType = '';
+    if (aiFile) {
+      try {
+        fileData = await fileToBase64(aiFile);
+        mimeType = aiFile.type;
+      } catch (error) {
+        alert('Lỗi đọc file!');
+        setIsGeneratingAi(false);
+        return;
+      }
+    }
+
     try {
-      const res = await fetch('/api/generate-exam-2025', {
+      const res = await fetch('/api/generate-exam-multimodal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topic: aiTopic,
+          fileData,
+          mimeType,
           aiStructure: aiStructure
         })
       });
@@ -360,6 +477,9 @@ CHUẨN ĐẦU RA JSON (Array of objects):
               </button>
               <button onClick={() => setShowCropModal(true)} className="px-5 py-2.5 bg-rose-100 text-rose-600 font-bold rounded-xl hover:bg-rose-200 transition-all text-xs uppercase flex items-center gap-1 shadow-sm border border-rose-200">
                 <span>✂️</span> Cắt Ảnh
+              </button>
+              <button onClick={() => setShowPreviewModal(true)} className="px-5 py-2.5 bg-emerald-100 text-emerald-700 font-bold rounded-xl hover:bg-emerald-200 transition-all text-xs uppercase flex items-center gap-1 shadow-sm border border-emerald-200">
+                <span>👁️</span> Xem Trước
               </button>
               <button onClick={() => router.back()} className="px-5 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all text-xs uppercase">
                 Hủy
@@ -450,6 +570,7 @@ CHUẨN ĐẦU RA JSON (Array of objects):
                     rows={2}
                     value={q.content}
                     onChange={(e) => updateQuestionCommon(index, 'content', e.target.value)}
+                    onPaste={(e) => handlePasteImage(e, index, 'content')}
                     placeholder="VD: Cho hàm số $y=f(x)$ liên tục trên $\mathbb{R}$..."
                     className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-200 text-sm font-medium shadow-sm"
                   />
@@ -587,8 +708,15 @@ CHUẨN ĐẦU RA JSON (Array of objects):
                     </ReactCrop>
                   </div>
                   <div className="w-full md:w-80 space-y-4">
-                    <button onClick={getCroppedImg} className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-lg transition-colors">
-                      📸 Cắt & Trích Xuất
+                    <button onClick={getCroppedImg} disabled={isUploadingImg} className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-lg transition-colors flex justify-center items-center gap-2">
+                      {isUploadingImg ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>ĐANG TẢI LÊN...</span>
+                        </>
+                      ) : (
+                        '📸 Cắt & Trích Xuất'
+                      )}
                     </button>
                     {croppedBase64 && (
                       <div className="space-y-2">
@@ -621,8 +749,9 @@ CHUẨN ĐẦU RA JSON (Array of objects):
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-lg w-full text-slate-800 relative border-4 border-blue-100"
+              className="bg-white p-6 md:p-8 rounded-[2rem] shadow-2xl max-w-lg w-full text-slate-800 relative border-4 border-blue-100 flex flex-col max-h-[90vh]"
             >
+              <div className="shrink-0">
               <h2 className="text-2xl font-black mb-1 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center gap-2">
                 🤖 AI Tự Động Sinh Đề 2025
               </h2>
@@ -640,16 +769,27 @@ CHUẨN ĐẦU RA JSON (Array of objects):
                   📝 Dán Dữ Liệu
                 </button>
               </div>
+              </div>
 
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-y-auto pr-2 pb-2">
                 <div>
-                  <label className="block text-xs font-black text-slate-600 uppercase mb-2">Chủ đề / Yêu cầu</label>
+                  <label className="block text-xs font-black text-slate-600 uppercase mb-2">Tải Lên File (PDF, Hình Ảnh)</label>
                   <input 
-                    type="text"
+                    type="file" 
+                    accept="application/pdf,image/png,image/jpeg,image/webp" 
+                    onChange={(e) => setAiFile(e.target.files?.[0] || null)}
+                    className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer mb-2"
+                  />
+                  {aiFile && <p className="text-[10px] font-medium text-blue-600">Đã chọn: {aiFile.name}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-600 uppercase mb-2">Hoặc Nhập Nội dung / Tài liệu gốc bóc tách đề</label>
+                  <textarea 
                     value={aiTopic}
                     onChange={e => setAiTopic(e.target.value)}
-                    placeholder="VD: Cực trị hàm số bậc 3"
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-semibold shadow-inner"
+                    placeholder="Dán nội dung câu hỏi thô hoặc tài liệu gốc vào đây..."
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-semibold shadow-inner resize-none min-h-[120px]"
                     disabled={isGeneratingAi}
                   />
                 </div>
@@ -753,13 +893,14 @@ CHUẨN ĐẦU RA JSON (Array of objects):
                         value={manualJson}
                         onChange={(e) => setManualJson(e.target.value)}
                         placeholder="Dán nội dung JSON vào đây..."
-                        className="w-full h-28 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none resize-none focus:border-indigo-500"
+                        className="w-full h-40 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none resize-none focus:border-indigo-500 shadow-inner"
                       />
                     </div>
                   </div>
                 )}
+              </div>
 
-                <div className="flex gap-3 pt-4 border-t mt-4">
+              <div className="flex gap-3 pt-4 border-t mt-4 shrink-0">
                   <button 
                     onClick={() => setShowAiModal(false)}
                     disabled={isGeneratingAi}
@@ -782,6 +923,120 @@ CHUẨN ĐẦU RA JSON (Array of objects):
                     )}
                   </button>
                 </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL XEM TRƯỚC ĐỀ THI */}
+      <AnimatePresence>
+        {showPreviewModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-6 md:p-8 rounded-[2rem] shadow-2xl max-w-4xl w-full text-slate-800 relative border-4 border-emerald-100 flex flex-col max-h-[90vh]"
+            >
+              <div className="shrink-0 mb-6 flex justify-between items-center border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-xl font-black text-emerald-700 uppercase tracking-wide">
+                    Xem Trước: {title || 'Chưa có tiêu đề'}
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+                    Lớp {grade} • {duration} Phút • {questions.length} Câu hỏi
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setShowPreviewModal(false)}
+                  className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-2 pb-2 custom-scrollbar space-y-8">
+                {questions.length === 0 ? (
+                  <p className="text-center text-slate-400 italic font-bold">Chưa có câu hỏi nào trong đề thi.</p>
+                ) : (
+                  questions.map((q, index) => (
+                    <div key={q.id} className="space-y-4">
+                      <div className="flex gap-2 items-start">
+                        <span className="font-black text-emerald-600 uppercase shrink-0 mt-1">Câu {index + 1}:</span>
+                        <div className="prose prose-sm max-w-none prose-p:my-1 prose-img:rounded-xl">
+                          <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                            {q.content || '...'}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                      
+                      {q.type === 'MCQ' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-12">
+                          {['A', 'B', 'C', 'D'].map(label => {
+                            const isCorrect = q.mcqCorrect === label;
+                            return (
+                              <div key={label} className={`flex items-start gap-2 p-2 rounded-lg ${isCorrect ? 'bg-emerald-50 border border-emerald-200' : ''}`}>
+                                <span className={`font-black w-5 mt-1 ${isCorrect ? 'text-emerald-600' : 'text-slate-600'}`}>{label}.</span>
+                                <div className="prose prose-sm max-w-none prose-p:my-0">
+                                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                    {(q.mcqOptions as any)[label] || '...'}
+                                  </ReactMarkdown>
+                                </div>
+                                {isCorrect && <span className="ml-auto text-emerald-500 text-xs font-black mt-1">✓</span>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {q.type === 'TF' && (
+                        <div className="space-y-2 pl-12">
+                          {q.tfOptions.map((opt, optIndex) => (
+                            <div key={opt.id} className="flex gap-3 items-center p-2 bg-slate-50 rounded-lg">
+                              <span className="font-black text-slate-500">{['a', 'b', 'c', 'd'][optIndex]}.</span>
+                              <div className="flex-1 prose prose-sm max-w-none prose-p:my-0">
+                                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                  {opt.text || '...'}
+                                </ReactMarkdown>
+                              </div>
+                              <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${opt.isTrue ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                {opt.isTrue ? 'Đúng' : 'Sai'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {q.type === 'SA' && (
+                        <div className="pl-12">
+                          <p className="text-sm font-bold text-slate-600">
+                            Đáp án: <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded">{q.saCorrect || '...'}</span>
+                          </p>
+                        </div>
+                      )}
+                      
+                      {q.type === 'LA' && (
+                        <div className="pl-12">
+                          <p className="text-sm font-bold text-slate-600 mb-2">Hướng dẫn chấm / Lời giải:</p>
+                          <div className="p-3 bg-slate-50 rounded-xl prose prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              {q.laGuide || '...'}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="shrink-0 mt-6 pt-4 border-t border-slate-100 flex justify-end">
+                <button 
+                  onClick={() => setShowPreviewModal(false)}
+                  className="px-6 py-2.5 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition-colors uppercase text-xs"
+                >
+                  Đóng
+                </button>
               </div>
             </motion.div>
           </div>

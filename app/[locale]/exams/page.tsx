@@ -21,7 +21,7 @@ export default function QuestionBankPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'list' | 'add' | 'matrix' | 'exams2025'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'add' | 'matrix' | 'exams2025' | 'ai_generator'>('list');
   const [questions, setQuestions] = useState<any[]>([]);
   const [exams2025, setExams2025] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +45,12 @@ export default function QuestionBankPage() {
   ]);
   const [generatedExam, setGeneratedExam] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // AI Generator State
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiFile, setAiFile] = useState<File | null>(null);
+  const [aiIsGenerating, setAiIsGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
 
   // Tải danh sách câu hỏi từ Firebase
   const fetchQuestions = async () => {
@@ -246,6 +252,91 @@ export default function QuestionBankPage() {
     }
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        let encoded = reader.result?.toString().replace(/^data:(.*,)?/, '') || '';
+        if (encoded.length % 4 > 0) encoded += '='.repeat(4 - (encoded.length % 4));
+        resolve(encoded);
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleGenerateExamAI = async () => {
+    if (!aiTopic.trim() && !aiFile) {
+      showToast('warning', 'Vui lòng nhập nội dung, Link hoặc tải File lên!');
+      return;
+    }
+    setAiIsGenerating(true);
+    setAiResult(null);
+
+    let fileData = '';
+    let mimeType = '';
+    if (aiFile) {
+      try {
+        fileData = await fileToBase64(aiFile);
+        mimeType = aiFile.type;
+      } catch (error) {
+        showToast('error', 'Lỗi đọc file!');
+        setAiIsGenerating(false);
+        return;
+      }
+    }
+
+    try {
+      const response = await fetch('/api/generate-exam-multimodal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: aiTopic,
+          fileData,
+          mimeType,
+          aiStructure: []
+        })
+      });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+      
+      setAiResult({
+        title: 'Đề Sinh Tự Động Từ AI',
+        grade: '12',
+        duration: '90',
+        questions: data.result,
+        stats: {
+          mcq: data.result.filter((q:any) => q.type==='MCQ').length,
+          tf: data.result.filter((q:any) => q.type==='TF').length,
+          sa: data.result.filter((q:any) => q.type==='SA').length
+        }
+      });
+      showToast('success', 'Đã khởi tạo đề thành công!');
+    } catch(e: any) {
+      showToast('error', e.message || 'Lỗi kết nối AI');
+    } finally {
+      setAiIsGenerating(false);
+    }
+  };
+
+  const handleSaveAiResult = async () => {
+    if (!aiResult) return;
+    try {
+      await addDoc(collection(db, 'exams_2025'), {
+        ...aiResult,
+        createdAt: serverTimestamp()
+      });
+      showToast('success', 'Đã lưu đề thi AI vào danh sách!');
+      setAiResult(null);
+      setAiTopic('');
+      setAiFile(null);
+      setActiveTab('exams2025');
+      fetchExams2025();
+    } catch(e) {
+      showToast('error', 'Lỗi khi lưu đề thi.');
+    }
+  };
+
   return (
     <AuthGuard>
       <main className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 font-sans text-slate-800">
@@ -279,6 +370,9 @@ export default function QuestionBankPage() {
             </button>
             <button onClick={() => setActiveTab('matrix')} className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'matrix' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-500 hover:text-rose-600'}`}>
               🎯 Tạo Đề Từ Ma Trận (CV 7991)
+            </button>
+            <button onClick={() => setActiveTab('ai_generator')} className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${activeTab === 'ai_generator' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-500 hover:text-cyan-600'}`}>
+              🤖 Tạo Đề AI (File/Ảnh)
             </button>
           </div>
 
@@ -546,6 +640,102 @@ export default function QuestionBankPage() {
                     <div className="pt-4 flex gap-4">
                       <button onClick={publishToArena} className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-600/30">
                         🚀 Khởi tạo Phòng Thi / Đấu Trường ngay
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: TẠO ĐỀ AI (MULTIMODAL) */}
+            {activeTab === 'ai_generator' && (
+              <div className="animate-fadeIn space-y-6">
+                <div className="bg-cyan-50 border border-cyan-200 p-6 rounded-3xl gap-6 flex flex-col md:flex-row">
+                  <div className="flex-1 space-y-4">
+                    <h2 className="text-lg font-black text-cyan-800 uppercase tracking-wider border-b border-cyan-200 pb-2">1. Dữ Liệu Nguồn</h2>
+                    <div>
+                      <label className="block text-xs font-black text-cyan-700 uppercase mb-2">Tải Lên File (PDF, Hình Ảnh):</label>
+                      <input 
+                        type="file" 
+                        accept="application/pdf,image/png,image/jpeg,image/webp" 
+                        onChange={(e) => setAiFile(e.target.files?.[0] || null)}
+                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-cyan-100 file:text-cyan-700 hover:file:bg-cyan-200 cursor-pointer"
+                      />
+                      {aiFile && <p className="mt-2 text-xs font-medium text-cyan-600">Đã chọn: {aiFile.name}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-cyan-700 uppercase mb-2">Hoặc Nhập Nội Dung / Link / Yêu cầu cụ thể:</label>
+                      <textarea 
+                        value={aiTopic} 
+                        onChange={(e) => setAiTopic(e.target.value)}
+                        placeholder="Nhập yêu cầu sinh đề, hoặc paste Link/nội dung văn bản vào đây..." 
+                        className="w-full h-32 p-4 bg-white border border-cyan-200 rounded-xl text-sm focus:outline-none resize-none shadow-inner" 
+                      />
+                    </div>
+                  </div>
+                  <div className="w-full md:w-1/3 flex flex-col justify-end">
+                    <button 
+                      onClick={handleGenerateExamAI} 
+                      disabled={aiIsGenerating} 
+                      className="w-full py-4 bg-cyan-600 hover:bg-cyan-700 text-white font-black rounded-xl uppercase tracking-widest shadow-lg transition-all disabled:opacity-50"
+                    >
+                      {aiIsGenerating ? 'AI đang phân tích... ⏳' : '✨ Yêu Cầu AI Khởi Tạo'}
+                    </button>
+                  </div>
+                </div>
+
+                {aiResult && (
+                  <div className="bg-white border-2 border-cyan-200 p-6 rounded-3xl space-y-4 shadow-xl">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                      <h3 className="font-black text-slate-800 text-lg">Kết Quả Phân Tích & Sinh Đề</h3>
+                      <span className="bg-cyan-100 text-cyan-800 px-3 py-1 rounded-lg text-xs font-bold">Tổng: {aiResult.questions.length} câu</span>
+                    </div>
+                    
+                    <div className="max-h-96 overflow-y-auto pr-2 space-y-3">
+                      {aiResult.questions.map((q: any, i: number) => (
+                        <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-sm">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="font-black text-cyan-700 uppercase text-xs">Câu {i+1} [{q.type}]</span>
+                          </div>
+                          <div className="font-medium text-slate-800 mb-3 whitespace-pre-wrap"><BlockMath math={q.content || ''} /></div>
+                          {q.type === 'MCQ' && q.options && (
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              {q.options.map((opt: string, idx: number) => (
+                                <div key={idx} className={`p-2 rounded ${String(q.correctAnswer) === String(idx) ? 'bg-cyan-100 text-cyan-800 font-bold border border-cyan-300' : 'bg-white border border-slate-200'}`}>{opt}</div>
+                              ))}
+                            </div>
+                          )}
+                          {q.type === 'TF' && q.statements && (
+                            <div className="space-y-2 text-xs">
+                              {q.statements.map((st: any, idx: number) => (
+                                <div key={idx} className="flex justify-between p-2 bg-white border border-slate-200 rounded">
+                                  <span>{st.text}</span>
+                                  <span className={`font-bold ${st.isTrue ? 'text-emerald-600' : 'text-rose-600'}`}>{st.isTrue ? 'Đúng' : 'Sai'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {q.type === 'SA' && (
+                            <div className="mt-2 text-xs p-2 bg-emerald-50 border border-emerald-200 rounded text-emerald-800 font-bold">
+                              Đáp án: {q.correctAnswer}
+                            </div>
+                          )}
+                          <details className="mt-3 text-xs">
+                            <summary className="cursor-pointer font-bold text-slate-500 hover:text-slate-700">Xem lời giải chi tiết</summary>
+                            <div className="mt-2 p-3 bg-white border border-slate-200 rounded text-slate-600 whitespace-pre-wrap">
+                              {q.explanation || 'Không có lời giải.'}
+                            </div>
+                          </details>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="pt-4 flex gap-4">
+                      <button onClick={() => setAiResult(null)} className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm uppercase transition-colors">
+                        Hủy Bỏ
+                      </button>
+                      <button onClick={handleSaveAiResult} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-black rounded-xl text-sm uppercase tracking-widest shadow-md">
+                        💾 Lưu Thành Đề Thi 2025
                       </button>
                     </div>
                   </div>
