@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { useToast } from '@/components/ToastProvider';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import 'katex/dist/katex.min.css';
 import { BlockMath } from 'react-katex';
 
@@ -45,6 +45,10 @@ export default function QuestionBankPage() {
   ]);
   const [generatedExam, setGeneratedExam] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Exam View State
+  const [selectedExam, setSelectedExam] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // AI Generator State
   const [aiTopic, setAiTopic] = useState('');
@@ -109,6 +113,51 @@ export default function QuestionBankPage() {
       showToast('error', 'Lỗi tải ảnh. Vui lòng kiểm tra lại thiết lập máy chủ.');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleDeleteQuestion = async (id: string) => {
+    if (confirm('Bạn có chắc chắn muốn xóa câu hỏi này khỏi kho?')) {
+      try {
+        await deleteDoc(doc(db, 'cauhoi_nganhang', id));
+        showToast('success', 'Đã xóa câu hỏi thành công.');
+        fetchQuestions();
+      } catch (error) {
+        showToast('error', 'Lỗi khi xóa câu hỏi.');
+      }
+    }
+  };
+
+  const handleDeleteExam = async (id: string) => {
+    if (confirm('Bạn có chắc chắn muốn xóa đề thi này?')) {
+      try {
+        await deleteDoc(doc(db, 'exams_2025', id));
+        showToast('success', 'Đã xóa đề thi thành công.');
+        fetchExams2025();
+      } catch (error) {
+        showToast('error', 'Lỗi khi xóa đề thi.');
+      }
+    }
+  };
+
+  const handleSaveMatrixExam = async () => {
+    if (!generatedExam) return;
+    try {
+      const stats = {
+        mcq: generatedExam.questions.filter((q:any) => q.type === 'MCQ' || q.type === 'Trắc nghiệm').length,
+        tf: generatedExam.questions.filter((q:any) => q.type === 'TF').length,
+        sa: generatedExam.questions.filter((q:any) => q.type === 'SA').length,
+      };
+      await addDoc(collection(db, 'exams_2025'), {
+        ...generatedExam,
+        stats,
+        createdAt: serverTimestamp()
+      });
+      showToast('success', 'Đã lưu Đề thi Ma trận thành công!');
+      setActiveTab('exams2025');
+      fetchExams2025();
+    } catch (e) {
+      showToast('error', 'Lỗi khi lưu đề thi.');
     }
   };
 
@@ -407,14 +456,15 @@ export default function QuestionBankPage() {
                             {exam.title || 'Đề thi chưa đặt tên'}
                           </h3>
                           <div className="space-y-1 mb-6">
-                            <p className="text-xs font-bold text-slate-500">Phần I: {exam.stats?.mcq || 0} câu</p>
-                            <p className="text-xs font-bold text-slate-500">Phần II: {exam.stats?.tf || 0} câu</p>
-                            <p className="text-xs font-bold text-slate-500">Phần III: {exam.stats?.sa || 0} câu</p>
+                            <p className="text-xs font-bold text-slate-500">Phần I: {exam.stats?.mcq ?? (exam.questions || []).filter((q:any) => q.type === 'MCQ' || q.type === 'Trắc nghiệm').length} câu</p>
+                            <p className="text-xs font-bold text-slate-500">Phần II: {exam.stats?.tf ?? (exam.questions || []).filter((q:any) => q.type === 'TF').length} câu</p>
+                            <p className="text-xs font-bold text-slate-500">Phần III: {exam.stats?.sa ?? (exam.questions || []).filter((q:any) => q.type === 'SA').length} câu</p>
                           </div>
                         </div>
                         <div className="flex gap-2 border-t pt-4">
-                          <button onClick={() => alert('Đang phát triển xem chi tiết đề...')} className="flex-1 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 uppercase">Xem / Sửa</button>
-                          <button onClick={() => alert('Đang phát triển tính năng In Đề PDF...')} className="flex-1 py-2 bg-indigo-600 text-white font-black text-xs rounded-xl hover:bg-indigo-700 uppercase shadow-md shadow-indigo-200">In Đề PDF</button>
+                          <button onClick={() => { setSelectedExam(exam); setIsModalOpen(true); }} className="flex-1 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 uppercase transition-colors">Xem chi tiết</button>
+                          <button onClick={() => window.print()} className="flex-1 py-2 bg-indigo-600 text-white font-black text-xs rounded-xl hover:bg-indigo-700 uppercase shadow-md shadow-indigo-200 transition-colors">In Đề PDF</button>
+                          <button onClick={() => handleDeleteExam(exam.id)} className="px-3 py-2 bg-rose-100 text-rose-700 hover:text-white font-bold text-xs rounded-xl hover:bg-rose-500 uppercase transition-colors" title="Xóa đề">🗑️</button>
                         </div>
                       </div>
                     ))}
@@ -440,6 +490,9 @@ export default function QuestionBankPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {questions.map((q, idx) => (
                       <div key={q.id} className="p-4 border border-slate-200 rounded-2xl bg-slate-50 hover:shadow-md transition-shadow relative group">
+                        <button onClick={() => handleDeleteQuestion(q.id)} className="absolute top-2 right-2 text-rose-500 bg-rose-100 hover:bg-rose-500 hover:text-white w-7 h-7 rounded-lg opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center z-10" title="Xóa câu hỏi">
+                          🗑️
+                        </button>
                         <div className="flex justify-between items-start mb-3">
                           <span className="text-[10px] font-black bg-white border border-slate-200 px-2 py-1 rounded text-slate-600 uppercase">{q.type === 'MCQ' || q.type === 'Trắc nghiệm' ? 'MCQ' : q.type} | {q.level}</span>
                           <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded uppercase">{q.topic}</span>
@@ -638,8 +691,11 @@ export default function QuestionBankPage() {
                       ))}
                     </div>
                     <div className="pt-4 flex gap-4">
+                      <button onClick={handleSaveMatrixExam} className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl uppercase tracking-widest shadow-lg shadow-indigo-600/30">
+                        💾 Lưu Thành Đề Thi 2025
+                      </button>
                       <button onClick={publishToArena} className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-600/30">
-                        🚀 Khởi tạo Phòng Thi / Đấu Trường ngay
+                        🚀 Khởi tạo Phòng Thi / Đấu Trường
                       </button>
                     </div>
                   </div>
@@ -745,6 +801,74 @@ export default function QuestionBankPage() {
 
           </div>
         </div>
+
+        {/* Modal Xem chi tiết đề */}
+        {isModalOpen && selectedExam && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="text-xl font-black text-slate-800 uppercase tracking-wide">{selectedExam.title}</h3>
+                <button onClick={() => setIsModalOpen(false)} className="w-8 h-8 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded-full font-bold text-slate-600">X</button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                {(selectedExam.questions || []).map((q: any, i: number) => (
+                  <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-sm relative">
+                    <div className="font-black text-indigo-700 uppercase text-xs mb-2">Câu {i+1} [{q.type} - {q.level || 'N/A'}]</div>
+                    <div className="font-medium text-slate-800 mb-3 whitespace-pre-wrap overflow-x-auto"><BlockMath math={q.question || q.content || ''} /></div>
+                    {q.imageUrl && <img src={q.imageUrl} alt="Hỉnh vẽ" className="max-h-32 object-contain bg-white border rounded p-1 mb-3" />}
+                    
+                    {/* MCQ Options */}
+                    {q.options && !Array.isArray(q.options) && (
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {['A', 'B', 'C', 'D'].map((opt, idx) => (
+                          q.options[opt] && (
+                            <div key={idx} className={`p-2 rounded ${q.correctAnswer === opt ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300' : 'bg-white border border-slate-200'}`}>
+                              {opt}. {q.options[opt]}
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Multimodal AI MCQ Options (Array) */}
+                    {q.options && Array.isArray(q.options) && (
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {q.options.map((opt: string, idx: number) => (
+                          <div key={idx} className={`p-2 rounded ${String(q.correctAnswer) === String(idx) ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300' : 'bg-white border border-slate-200'}`}>
+                            {opt}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* TF Statements */}
+                    {q.type === 'TF' && q.statements && (
+                      <div className="space-y-2 text-xs mt-2">
+                        {q.statements.map((st: any, idx: number) => (
+                          <div key={idx} className="flex justify-between p-2 bg-white border border-slate-200 rounded">
+                            <span>{st.text}</span>
+                            <span className={`font-bold ${st.isTrue ? 'text-emerald-600' : 'text-rose-600'}`}>{st.isTrue ? 'Đúng' : 'Sai'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Short Answer */}
+                    {(q.type === 'SA' || (!q.options && !q.statements)) && q.correctAnswer && (
+                      <div className="mt-3 text-xs p-2 bg-emerald-50 border border-emerald-200 rounded text-emerald-800 font-bold w-fit">
+                        Đáp án: {q.correctAnswer}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button onClick={() => window.print()} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm uppercase shadow-sm">In Đề Ngay</button>
+                <button onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm uppercase">Đóng</button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </AuthGuard>
   );
